@@ -23,3 +23,4 @@ test('every file referenced by the manifest exists', () => {
   ];
   for (const f of files) assert.ok(fs.existsSync(f), `missing ${f}`);
 });
+
