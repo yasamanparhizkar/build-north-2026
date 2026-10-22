@@ -53,3 +53,4 @@ export function decideFromText(text, elements, { allowAmbiguous = false } = {}) 
   if (local.result.matchedElementId) return { ...base, kind: 'point', ids: [local.result.matchedElementId] };
   return { ...base, kind: 'no-match', ids: [] };
 }
+
