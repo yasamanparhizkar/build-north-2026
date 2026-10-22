@@ -7,6 +7,24 @@ A Chrome extension (Manifest V3) that helps an older adult find things on a web 
 - Near-zero cost: no backend, no database. Typed commands work offline with no API key. Voice uses your own Gemini API key (free tier available).
 - The family member installs nothing.
 
+## Project status
+
+| Area | Status |
+|---|---|
+| Typed commands (offline matcher), pointer, DOM scanning | ✅ Verified in real Chrome, including live Wikipedia and example.com |
+| Snapshot validation, privacy filters, no-click guarantee | ✅ Verified in real Chrome (integration tests) |
+| Voice pipeline logic (dedupe, stale results, rate limits) | ✅ Verified in real Chrome with a **mocked** Gemini |
+| Meet tab audio capture + real Gemini audio understanding | ⚠️ **Not yet verified in a real call.** See [docs/TESTING.md](docs/TESTING.md) |
+| Speech-to-pointer latency | ⚠️ Not measured yet. Recorded live in popup → Diagnostics |
+
+## Quick start (2 minutes, no API key)
+
+1. Open `chrome://extensions`, turn on **Developer mode**, click **Load unpacked**, and select this folder.
+2. Open <https://en.wikipedia.org> and click the extension icon.
+3. Type `where is log in` and press **Highlight Element**. A magenta pointer appears on "Log in".
+
+For voice, add a Gemini API key (see [Install](#install)) and follow [Use → Live call](#use).
+
 ## Architecture
 
 ```mermaid
@@ -35,11 +53,16 @@ flowchart TD
 1. The offscreen document plays the Meet audio back (capture mutes the tab otherwise) and runs an energy-based VAD with an adaptive noise floor.
 2. A clip is sent **~0.7 s after speech ends**, or every **4 s** during long speech. Each clip holds up to **6 s** of audio, so consecutive clips overlap by 2 s and a sentence crossing a boundary is heard whole. Silence is never sent.
 3. The service worker drops stale work (old session, already-handled sequence, older than 15 s, rate-limited), asks the content script for a fresh **snapshot**, and sends the clip plus a compact element table (`[id, role, name, region, visible]`) to Gemini with a strict response schema.
-4. The answer is validated: unknown ids and unsupported intents are rejected, and confidence is clamped. Then it is combined with the deterministic matcher: a confident validated pick points directly; a missing or low-confidence pick falls back to matching the spoken target locally; if it is still ambiguous, up to 3 numbered candidates are shown instead of guessing.
+4. The answer is validated: unknown ids and unsupported intents are rejected, and confidence is clamped. Then it is combined with the deterministic matcher:
+   - A confident validated pick points directly.
+   - A missing or low-confidence pick falls back to matching the spoken target locally.
+   - If it is still ambiguous, up to 3 numbered candidates are shown instead of guessing.
 5. Duplicate commands from overlapping clips are suppressed (same target and element within 10 s). Results that arrive after *Stop* or after a newer highlight are discarded.
 6. The content script resolves `(snapshotId, id)` to the live element and checks it still exists, is visible, and still has the same accessible name. If the page re-rendered, it re-matches by role and name. Only then does it draw the pointer.
 
 **Typed commands** (popup) use the same path, except the offline matcher is tried first and Gemini (text) is only asked if the matcher is unsure and a key is saved.
+
+**Session states:** `idle → starting → listening ⇄ processing → interrupted / error → idle`. Every Start or Stop bumps a *generation* number, so work started under an older session is discarded.
 
 ## Project layout
 
@@ -83,15 +106,19 @@ test/fixtures/         local test page (shadow DOM, iframe, privacy traps)
 docs/TESTING.md        manual end-to-end procedure for a real Meet call
 ```
 
+Modules marked *pure* have no Chrome or DOM dependencies and are unit tested in Node.
+
 ## Install
 
 1. Open `chrome://extensions` and turn on **Developer mode**.
 2. Click **Load unpacked** and select this folder (the one containing `manifest.json`). Chrome 116 or later is required.
 3. Pin the extension. Open its popup, then **Settings**, and paste a Gemini API key from <https://aistudio.google.com> (only needed for voice). Click **Save Settings**.
 
+After pulling new code, click the **reload** icon on the extension card in `chrome://extensions`, then reload any open tabs.
+
 ## Use
 
-- **Test without voice or a key:** open Gmail or Wikipedia, open the popup, type `click the compose button` or `where is log in`, and press **Highlight Element**.
+- **Test without voice or a key:** open Gmail or Wikipedia, open the popup, type `click the compose button` or `where is log in`, and press **Highlight Element** (or Enter).
 - **Live call:**
   1. Mom joins the Meet call and shares her window or screen.
   2. On the **Meet tab**, she opens the popup and presses **Start Listening**. The toolbar badge shows **ON** and pages show a red *"Helper is listening [Stop]"* pill.
@@ -99,15 +126,55 @@ docs/TESTING.md        manual end-to-end procedure for a real Meet call
   4. The family member says *"click the Compose button"*. The pointer appears for about 20 seconds.
   5. Stop at any time with the pill's **Stop** button or the popup.
 
+**Example phrases that work:** "click Compose", "where is the mic button", "hang up the call", "the record button on the right", "click in the search box", "where is log in". If two controls fit equally, numbered choices appear so the family member can clarify.
+
+## Configuration
+
+**Popup → Settings**
+
+| Setting | Default | Notes |
+|---|---|---|
+| Gemini API key | – | Required for voice only |
+| Model | `gemini-flash-latest` | Google's alias for the current Flash model. If the model is not found, an available Flash model is chosen automatically and saved here |
+| Voice mode | Audio clips | *Gemini Live streaming* is experimental |
+| Live model | see `constants.js` | Only used in Live mode |
+
+**Tuning constants** in [src/shared/constants.js](src/shared/constants.js):
+
+| Constant | Default | Effect |
+|---|---|---|
+| `END_OF_SPEECH_MS` | 700 | Silence that ends an utterance. Lower means faster but may cut sentences |
+| `CLIP_WINDOW_MS` / `CLIP_HOP_MS` | 6000 / 4000 | Clip length and interval during long speech (2 s overlap) |
+| `MIN_SPEECH_MS` | 250 | Shorter sounds (coughs, clicks) are not sent |
+| `MAX_CLIP_AGE_MS` | 15000 | Older clips are dropped as stale |
+| `DEDUPE_WINDOW_MS` | 10000 | The same command within this window is ignored |
+| `GEMINI_TIMEOUT_MS` | 15000 | Per-request timeout |
+| `MAX_ELEMENTS` / `MAX_SAME_NAME` | 180 / 4 | Prompt size limits |
+| `HIGHLIGHT_TIMEOUT_MS` | 20000 | Pointer lifetime |
+
 ## Tests
 
 ```
-npm install            # dev only: Puppeteer + Chrome for Testing
-npm test               # unit tests (Node 20+)
-npm run test:integration   # loads the real extension in Chrome for Testing
+npm install                # dev only: Puppeteer + Chrome for Testing
+npm test                   # 90 unit tests (Node 20+)
+npm run test:integration   # 27 tests that load the real extension in Chrome for Testing
+npm run test:all           # both
 ```
 
-See [docs/TESTING.md](docs/TESTING.md) for the manual Meet procedure. Audio capture and Gemini audio understanding cannot be automated.
+| Suite | Covers |
+|---|---|
+| Unit (`test/*.test.js`) | Audio encoding/resampling, VAD and overlapping clips, prompt/schema, response validation, Gemini client (404 fallback, 429, 5xx, timeout), matcher and synonyms, decision/ambiguity, session state machine, stale/dedupe, metrics, snapshot registry, URL filter, Live protocol |
+| Integration (`test/integration/`) | Injection, shadow DOM, iframe coordinates, privacy (no field values sent), snapshot validation, pointer tracking, zero clicks, re-injection, popup, restricted pages, voice pipeline with mocked Gemini, real Wikipedia and example.com |
+| Manual ([docs/TESTING.md](docs/TESTING.md)) | Real Meet call: capture, playback, tab switching, Gmail/Meet controls, latency |
+
+The integration suite needs network access for the real-site tests (they are skipped if a site is unreachable). Set `SCREENSHOT_DIR` to choose where screenshots are written (default `test/integration/screenshots/`, git-ignored).
+
+## Development
+
+- **Add a synonym:** extend `SYNONYMS` in `src/background/matcher.js` and add a case to `test/matcher.test.js`.
+- **Debug the service worker:** `chrome://extensions` → *Service worker* → Console. **Offscreen document:** *Inspect views: offscreen.html* (only present while listening).
+- **Message rules:** message names live in `src/shared/messages.js`. Content scripts may only send `STOP_LISTENING`, and audio messages are only accepted from the offscreen document.
+- **No build step:** plain ES modules. Content scripts load through `loader.js` → dynamic `import()`, which is why `src/content/*.js` and `src/shared/*.js` are web-accessible.
 
 ## Privacy and security
 
@@ -141,3 +208,12 @@ See [docs/TESTING.md](docs/TESTING.md) for the manual Meet procedure. Audio capt
 - Elements in the browser's top layer (`<dialog>.showModal()`, fullscreen) can cover the overlay.
 - `ScriptProcessorNode` is deprecated but still supported. An AudioWorklet port is a possible future improvement.
 - The experimental *Gemini Live* mode (`src/voice/`) depends on a Live model name that changes often.
+
+## Roadmap
+
+1. Run the real-call procedure and record accuracy and latency (target: ≥ 90% correct on 20–30 commands, zero unintended clicks).
+2. Tune `END_OF_SPEECH_MS`, or switch to streaming transcription if latency is too high.
+3. Support cross-origin iframes through per-frame content scripts.
+4. Port audio processing to an AudioWorklet.
+5. Multilingual commands.
+6. Chrome Web Store release with a token-issuing backend instead of a user-supplied key.
