@@ -1,0 +1,17 @@
+{
+  "manifest_version": 3,
+  "name": "Senior Helper Pointer",
+  "version": "1.0",
+  "description": "Highlights web elements for seniors based on voice instructions.",
+  "permissions": ["activeTab", "scripting", "storage"],
+  "host_permissions": ["<all_urls>"],
+  "action": {
+    "default_popup": "popup.html"
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content.js"]
+    }
+  ]
+}
