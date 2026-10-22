@@ -7,7 +7,8 @@ export const MSG = Object.freeze({
   GET_STATE: 'GET_STATE',
   MANUAL_COMMAND: 'MANUAL_COMMAND',
   // offscreen -> background
-  AUDIO_CLIP: 'AUDIO_CLIP',
+  UTTERANCE: 'UTTERANCE',
+  LIVE_STATUS: 'LIVE_STATUS',
   // background -> offscreen
   START_CAPTURE: 'START_CAPTURE',
   STOP_CAPTURE: 'STOP_CAPTURE',
@@ -20,4 +21,3 @@ export const MSG = Object.freeze({
 
 /** Messages with this `target` are only handled by the offscreen document. */
 export const TARGET_OFFSCREEN = 'offscreen';
-
