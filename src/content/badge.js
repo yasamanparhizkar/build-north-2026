@@ -1,18 +1,45 @@
-// Status badge shown in the bottom-right corner of the page.
-let badge = null;
-let timer = null;
+// Status badge (bottom-right) and "listening" indicator with a Stop button (top-right).
+import { MSG } from '../shared/messages.js';
+import { getOverlay } from './overlay.js';
 
-export function initBadge() {
-  badge = document.createElement('div');
-  badge.id = 'senior-voice-badge';
-  document.body.appendChild(badge);
-}
+let badge = null;
+let badgeTimer = null;
+let indicator = null;
 
 export function showStatus(text, autoHideMs) {
-  if (!badge) initBadge();
-  badge.style.display = 'block';
-  badge.innerText = text;
-  clearTimeout(timer);
-  if (autoHideMs) timer = setTimeout(() => { badge.style.display = 'none'; }, autoHideMs);
+  const { layer } = getOverlay();
+  if (!badge || !badge.isConnected) {
+    badge = document.createElement('div');
+    badge.className = 'badge';
+    badge.setAttribute('role', 'status');
+    layer.appendChild(badge);
+  }
+  badge.textContent = text;
+  badge.classList.remove('hidden');
+  clearTimeout(badgeTimer);
+  if (autoHideMs) badgeTimer = setTimeout(() => badge.classList.add('hidden'), autoHideMs);
 }
 
+export function setIndicator(listening) {
+  if (!listening) {
+    indicator?.remove();
+    indicator = null;
+    return;
+  }
+  if (indicator?.isConnected) return;
+  const { layer } = getOverlay();
+  indicator = document.createElement('div');
+  indicator.className = 'indicator';
+  const text = document.createElement('span');
+  text.textContent = '🎧 Helper is listening';
+  const stop = document.createElement('button');
+  stop.type = 'button';
+  stop.textContent = 'Stop';
+  stop.addEventListener('click', (e) => {
+    e.stopPropagation();
+    chrome.runtime.sendMessage({ action: MSG.STOP_LISTENING }).catch(() => {});
+    setIndicator(false);
+  });
+  indicator.append(text, stop);
+  layer.appendChild(indicator);
+}

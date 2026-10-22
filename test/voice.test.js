@@ -143,3 +143,4 @@ test('LiveTranscriber reconnects after an unexpected close and stops cleanly', (
   client.stop();
   assert.equal(events.status.at(-1), 'stopped');
 });
+

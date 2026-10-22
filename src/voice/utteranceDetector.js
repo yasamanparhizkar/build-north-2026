@@ -27,3 +27,4 @@ export class UtteranceDetector {
     this.buffer = '';
   }
 }
+
