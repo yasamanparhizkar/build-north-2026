@@ -1,3 +1,6 @@
+if (!window.seniorHelperLoaded) {
+  window.seniorHelperLoaded = true;
+
 let recognition = null;
 let isListening = false;
 
@@ -21,14 +24,14 @@ style.textContent = `
   }
   #senior-helper-label {
     position: absolute;
-    top: 105%;
+    bottom: 110%;
     left: 50%;
     transform: translateX(-50%);
     background: #d93025;
     color: white;
-    font-size: 22px;
+    font-size: 20px;
     font-weight: bold;
-    padding: 8px 16px;
+    padding: 8px 14px;
     border-radius: 8px;
     white-space: nowrap;
     box-shadow: 0 4px 12px rgba(0,0,0,0.4);
@@ -77,15 +80,15 @@ function collectInteractiveElements() {
       }
     }
   });
-  return elementsList.slice(0, 120);
+  return elementsList.slice(0, 100);
 }
+
 // 3. Draw the Highlighter & Pointer around the target element
 function highlightElement(seniorId, instructionText) {
   clearHighlight();
   const target = document.querySelector(`[data-senior-id="${seniorId}"]`);
   if (!target) return false;
 
-  target.scrollIntoView({ behavior: 'smooth', block: 'center' });
   const rect = target.getBoundingClientRect();
 
   const pointer = document.createElement('div');
@@ -104,52 +107,65 @@ function highlightElement(seniorId, instructionText) {
   return true;
 }
 
+function clearHighlight() {
+  const existing = document.getElementById('senior-helper-pointer');
+  if (existing) existing.remove();
+}
+
 // 4. Send transcript + DOM elements to Gemini via background.js
 async function processCommandWithLLM(commandText) {
   const { geminiApiKey } = await chrome.storage.local.get(['geminiApiKey']);
   if (!geminiApiKey) {
-    alert('Please save your Gemini API Key in the Senior Helper extension popup first!');
+    badge.style.display = 'block';
+    badge.innerText = '⚠️ Please save your Gemini API Key in the popup first!';
     return 'Missing API Key';
   }
 
   const elements = collectInteractiveElements();
   const prompt = `
-You are an assistant helping a senior citizen find an element on a webpage based on a spoken instruction from a family member.
-Spoken utterance: "${commandText}"
+You are an assistant helping a senior citizen find an element on a webpage based on a spoken instruction.
+Spoken instruction: "${commandText}"
 Available webpage elements: ${JSON.stringify(elements)}
 
-If the utterance contains an instruction to look at or click an element, pick the best matching element ID and write a short, encouraging 3-word label for the senior (e.g., "Click Captions Here").
-Respond ONLY in valid JSON format:
-{"matchedId": "sh-12" or null, "label": "Click Here"}
+Pick the best matching element ID and write a short 3-word label for the senior (e.g., "Click Captions Here").
+Respond ONLY in valid JSON:
+{"matchedId": "sh-12", "label": "Click Captions Here"}
 `;
 
   badge.style.display = 'block';
   badge.innerText = `🤔 Thinking: "${commandText}"...`;
 
   return new Promise((resolve) => {
+    // 10 second safety timer so it NEVER stays stuck on "Thinking..."
+    const safetyTimer = setTimeout(() => {
+      badge.innerText = '⏱️ Request timed out. Check Service Worker console.';
+      resolve('Timed out');
+    }, 10000);
+
     chrome.runtime.sendMessage(
       { action: 'CALL_GEMINI', apiKey: geminiApiKey, prompt },
       (response) => {
+        clearTimeout(safetyTimer);
+
         if (chrome.runtime.lastError || !response) {
-          badge.innerText = '❌ Extension reloaded—please refresh this webpage!';
-          resolve('Refresh webpage');
+          badge.innerText = `❌ Extension error: ${chrome.runtime.lastError?.message || 'Reload page'}`;
+          resolve('Extension error');
           return;
         }
 
         if (!response.success) {
-          console.error('Gemini API Error:', response.error);
-          badge.innerText = `❌ Error: ${response.error}`;
+          badge.innerText = `❌ API Error: ${response.error}`;
           resolve(`Error: ${response.error}`);
           return;
         }
 
         const parsed = response.data;
-        if (parsed.matchedId) {
+        if (parsed && parsed.matchedId) {
           highlightElement(parsed.matchedId, parsed.label);
           badge.innerText = `✅ Pointing to: ${parsed.label}`;
-          resolve(`Highlighted ${parsed.matchedId}`);
+          resolve(`✅ Highlighted: ${parsed.label}`);
         } else {
-          badge.innerText = `👂 Heard: "${commandText}" (No matching button on this screen)`;
+          badge.innerText = `👂 Heard: "${commandText}" (No matching button found)`;
           resolve('No match found');
         }
       }
@@ -157,19 +173,19 @@ Respond ONLY in valid JSON format:
   });
 }
 
-// 5. Continuous Voice Recognition (Web Speech API)
+// 5. Continuous Voice Recognition
 function toggleVoiceRecognition() {
   const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
   if (!SpeechRecognition) {
     alert('Web Speech API is not supported in this browser.');
-    return;
+    return 'Not supported';
   }
 
   if (isListening) {
     isListening = false;
     recognition.stop();
     badge.style.display = 'none';
-    return 'Voice stopped';
+    return '🛑 Voice stopped';
   }
 
   recognition = new SpeechRecognition();
@@ -185,12 +201,11 @@ function toggleVoiceRecognition() {
 
   recognition.onresult = (event) => {
     const transcript = event.results[event.results.length - 1][0].transcript.trim();
-    console.log('Heard:', transcript);
     processCommandWithLLM(transcript);
   };
 
   recognition.onend = () => {
-    if (isListening) recognition.start(); // Keep listening continuously
+    if (isListening) recognition.start();
   };
 
   recognition.start();
@@ -201,7 +216,7 @@ function toggleVoiceRecognition() {
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request.action === 'PROCESS_COMMAND') {
     processCommandWithLLM(request.command).then((status) => sendResponse({ status }));
-    return true; // Async response
+    return true;
   } else if (request.action === 'TOGGLE_VOICE') {
     const status = toggleVoiceRecognition();
     sendResponse({ status });

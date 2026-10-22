@@ -1,71 +1,86 @@
+let cachedModelName = null;
+
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request.action === 'CALL_GEMINI') {
-    callGeminiAPI(request.apiKey, request.prompt)
-      .then((result) => sendResponse({ success: true, data: result }))
+    callGeminiAuto(request.apiKey, request.prompt)
+      .then((data) => sendResponse({ success: true, data }))
       .catch((err) => sendResponse({ success: false, error: err.message }));
-    return true; // Keep message channel open for async response
+    return true;
   }
 });
 
-async function callGeminiAPI(rawApiKey, prompt) {
+// 1. Automatically ask Google's API which Flash model your key supports
+async function getAvailableModel(cleanKey) {
+  if (cachedModelName) return cachedModelName;
+
+  const listUrl = `https://generativelanguage.googleapis.com/v1beta/models?key=${encodeURIComponent(cleanKey)}`;
+  const res = await fetch(listUrl, {
+    headers: { 'x-goog-api-key': cleanKey }
+  });
+  const data = await res.json();
+
+  if (!res.ok) {
+    throw new Error(data.error?.message || `ListModels HTTP ${res.status}`);
+  }
+
+  // Filter for models that support generateContent
+  const validModels = (data.models || []).filter(m =>
+    (m.supportedGenerationMethods || []).includes('generateContent') &&
+    !m.name.includes('2.5') // skip retired 2.5 models
+  );
+
+  // Prefer a 'flash' model for speed, otherwise pick the first available model
+  const flashModel =
+    validModels.find(m => m.name.includes('3') && m.name.includes('flash')) ||
+    validModels.find(m => m.name.includes('flash')) ||
+    validModels[0];
+
+  if (!flashModel) {
+    throw new Error('No generateContent models found for this API key');
+  }
+
+  cachedModelName = flashModel.name; // e.g., "models/gemini-3-flash-preview"
+  console.log('Auto-selected model:', cachedModelName);
+  return cachedModelName;
+}
+
+// 2. Call generateContent using the auto-detected model
+async function callGeminiAuto(rawApiKey, prompt) {
   const cleanKey = (rawApiKey || '').trim().replace(/^["']|["']\$/g, '');
-  if (!cleanKey) {
-    throw new Error('API Key is empty');
+  if (!cleanKey) throw new Error('API Key is empty');
+
+  const modelPath = await getAvailableModel(cleanKey);
+  const url = `https://generativelanguage.googleapis.com/v1beta/${modelPath}:generateContent?key=${encodeURIComponent(cleanKey)}`;
+
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-goog-api-key': cleanKey
+    },
+    body: JSON.stringify({
+      contents: [{ parts: [{ text: prompt }] }],
+      generationConfig: {
+        temperature: 0.1,
+        responseMimeType: "application/json"
+      }
+    })
+  });
+
+  const data = await response.json();
+
+  if (!response.ok) {
+    cachedModelName = null; // Reset cache if error
+    throw new Error(`(${modelPath}) ${data.error?.message || response.status}`);
   }
 
-  // Put the exact model Google requested in your screenshot first!
-  const modelsToTry = [
-    'gemini-3.0-flash',
-    'gemini-3-flash-preview',
-    'gemini-flash-latest',
-    'gemini-2.0-flash'
-  ];
+  const parts = data.candidates?.[0]?.content?.parts || [];
+  const fullText = parts.map((p) => p.text || '').join('\n');
+  const jsonMatch = fullText.match(/\{[\s\S]*?\}/);
 
-  let lastError = 'Unknown API error';
-
-  for (const modelName of modelsToTry) {
-    try {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 8000); // 8-second max timeout per call
-
-      const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${encodeURIComponent(cleanKey)}`;
-
-      const response = await fetch(url, {
-        method: 'POST',
-        signal: controller.signal,
-        headers: {
-          'Content-Type': 'application/json',
-          'x-goog-api-key': cleanKey
-        },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: prompt }] }]
-        })
-      });
-
-      clearTimeout(timeoutId);
-      const data = await response.json();
-
-      if (!response.ok) {
-        lastError = data.error?.message || `HTTP ${response.status}`;
-        // If this model name doesn't exist (404/400), immediately try the next one in the list
-        continue;
-      }
-
-      // Safely extract text from any part of the response
-      const parts = data.candidates?.[0]?.content?.parts || [];
-      const fullText = parts.map((p) => p.text || '').join('\n');
-
-      // Extract the JSON object {...} even if the model added extra words
-      const jsonMatch = fullText.match(/\{[\s\S]*?\}/);
-      if (!jsonMatch) {
-        throw new Error(`Model returned non-JSON: ${fullText.slice(0, 60)}`);
-      }
-
-      return JSON.parse(jsonMatch[0]);
-    } catch (err) {
-      lastError = err.name === 'AbortError' ? `Timed out waiting for ${modelName}` : err.message;
-    }
+  if (!jsonMatch) {
+    throw new Error(`Non-JSON response from ${modelPath}`);
   }
 
-  throw new Error(lastError);
+  return JSON.parse(jsonMatch[0]);
 }
