@@ -7,24 +7,41 @@
 <body>
   <h3>👵 Senior Helper</h3>
 
-  <label>Gemini API Key (optional for typed commands; needed for voice. Free at aistudio.google.com):</label>
-  <input type="password" id="apiKey" placeholder="Paste Gemini API Key..." />
-  <label>Live model (advanced, leave blank for default):</label>
-  <input type="text" id="liveModel" placeholder="gemini-2.5-flash-native-audio-preview-09-2025" />
-  <button id="saveKey">Save Settings</button>
+  <div id="state" class="state idle">Not listening</div>
+  <button id="toggleListen" class="listen">🎧 Start Listening (open this on the Meet tab)</button>
+  <div id="meetHint" class="hint hidden">This tab is not Google Meet. The helper listens to the tab you start it on.</div>
 
   <hr>
-
-  <button id="toggleListen" class="listen">🎧 Start Listening to This Tab</button>
-
-  <label>Test Command (no audio needed):</label>
-  <input type="text" id="manualCmd" placeholder="e.g., Click the Compose button" />
+  <label for="manualCmd">Test a command (no API key needed):</label>
+  <input type="text" id="manualCmd" placeholder="e.g. Click the Compose button" maxlength="300" />
   <button id="sendCmd">Highlight Element</button>
   <button id="clearBtn" class="clear">Clear Pointer</button>
+  <div id="status" role="status">Ready.</div>
 
-  <div id="status">Ready. Open any page (like Gmail or Meet) to test!</div>
+  <details>
+    <summary>Settings</summary>
+    <label for="apiKey">Gemini API key (needed for voice; free at aistudio.google.com):</label>
+    <input type="password" id="apiKey" placeholder="Paste Gemini API key…" autocomplete="off" />
+    <label for="model">Model (blank = gemini-flash-latest):</label>
+    <input type="text" id="model" placeholder="gemini-flash-latest" />
+    <label for="voiceMode">Voice mode:</label>
+    <select id="voiceMode">
+      <option value="clips">Audio clips (recommended)</option>
+      <option value="live">Gemini Live streaming (experimental)</option>
+    </select>
+    <label for="liveModel">Live model (experimental mode only):</label>
+    <input type="text" id="liveModel" placeholder="gemini-2.5-flash-native-audio-preview-09-2025" />
+    <button id="saveKey">Save Settings</button>
+    <p class="note">The key is stored in this browser's extension storage. That is not a secure vault; use your own key and never share a build containing one.</p>
+  </details>
+
+  <details>
+    <summary>Diagnostics</summary>
+    <div id="diag" class="diag">No data yet.</div>
+  </details>
+
+  <p class="note">🔒 Privacy: while listening, short clips of the Meet tab's audio and the names of buttons on your current page are sent to Google's Gemini API (subject to your API tier's data terms). Nothing is clicked for you, and no audio or transcripts are saved.</p>
 
   <script type="module" src="popup.js"></script>
 </body>
 </html>
-

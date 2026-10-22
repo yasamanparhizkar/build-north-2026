@@ -1,62 +1,107 @@
 import { MSG } from '../shared/messages.js';
+import { isMeetUrl } from '../shared/urls.js';
 
-const statusEl = document.getElementById('status');
-const listenBtn = document.getElementById('toggleListen');
+const $ = (id) => document.getElementById(id);
+const statusEl = $('status');
+const listenBtn = $('toggleListen');
+
+const STATE_TEXT = {
+  idle: 'Not listening',
+  starting: 'Starting capture…',
+  listening: '🎧 Listening',
+  processing: '🎧 Listening · processing…',
+  interrupted: '⚠️ Capture interrupted',
+  error: '❌ Error'
+};
 
 const activeTab = async () => (await chrome.tabs.query({ active: true, currentWindow: true }))[0];
 
-async function refreshListenButton() {
-  const s = await chrome.runtime.sendMessage({ action: MSG.GET_STATE });
-  listenBtn.textContent = s?.active
-    ? '🛑 Stop Listening'
-    : '🎧 Start Listening to This Tab (open on the Meet tab)';
+async function refresh() {
+  const s = await chrome.runtime.sendMessage({ action: MSG.GET_STATE }).catch(() => null);
+  if (!s) return;
+  const stateEl = $('state');
+  stateEl.className = `state ${s.status}`;
+  stateEl.textContent = STATE_TEXT[s.status] + (s.detail ? ` — ${s.detail}` : '');
+  const listening = ['listening', 'processing', 'starting'].includes(s.status);
+  listenBtn.textContent = listening ? '🛑 Stop Listening' : '🎧 Start Listening (open this on the Meet tab)';
+  listenBtn.classList.toggle('stop', listening);
+
+  const m = s.metrics;
+  const fmt = (v) => (v == null ? '–' : `${v} ms`);
+  $('diag').textContent = m
+    ? [
+      `last heard: ${s.lastHeard ? `"${s.lastHeard}"` : '–'}`,
+      `median Gemini: ${fmt(m.medianGeminiMs)}`,
+      `median match+render: ${fmt(m.medianMatchMs)}`,
+      `median speech→pointer: ${fmt(m.medianTotalMs)}`,
+      `API calls/min: ${m.apiCallsPerMinute} (error rate ${m.apiErrorRate})`,
+      `clips: ${m.clipsReceived} received, ${m.clipsSkipped} skipped`,
+      `audio sent: ${m.audioSecondsSent} s · highlights: ${m.highlights}`
+    ].join('\n')
+    : 'No data yet.';
 }
 
-chrome.storage.local.get(['geminiApiKey', 'liveModel'], (res) => {
-  if (res.geminiApiKey) document.getElementById('apiKey').value = res.geminiApiKey;
-  if (res.liveModel) document.getElementById('liveModel').value = res.liveModel;
-});
+async function init() {
+  const s = await chrome.storage.local.get(['geminiApiKey', 'model', 'voiceMode', 'liveModel']);
+  $('apiKey').value = s.geminiApiKey || '';
+  $('model').value = s.model || '';
+  $('voiceMode').value = s.voiceMode || 'clips';
+  $('liveModel').value = s.liveModel || '';
+  const tab = await activeTab();
+  $('meetHint').classList.toggle('hidden', !tab || isMeetUrl(tab.url || ''));
+  refresh();
+}
 
-document.getElementById('saveKey').addEventListener('click', () => {
-  const geminiApiKey = document.getElementById('apiKey').value.trim();
-  const liveModel = document.getElementById('liveModel').value.trim();
-  chrome.storage.local.set({ geminiApiKey, liveModel }, () => {
-    statusEl.textContent = '✅ Settings saved!';
+$('saveKey').addEventListener('click', async () => {
+  await chrome.storage.local.set({
+    geminiApiKey: $('apiKey').value.trim(),
+    model: $('model').value.trim(),
+    voiceMode: $('voiceMode').value,
+    liveModel: $('liveModel').value.trim()
   });
+  statusEl.textContent = '✅ Settings saved.';
 });
 
 listenBtn.addEventListener('click', async () => {
-  const state = await chrome.runtime.sendMessage({ action: MSG.GET_STATE });
-  if (state?.active) {
-    await chrome.runtime.sendMessage({ action: MSG.STOP_LISTENING });
-    statusEl.textContent = '🛑 Stopped listening.';
-  } else {
-    const tab = await activeTab();
-    if (!tab) { statusEl.textContent = '❌ No active tab found.'; return; }
-    const res = await chrome.runtime.sendMessage({ action: MSG.START_LISTENING, tabId: tab.id });
-    statusEl.textContent = res?.ok
-      ? "🎧 Listening to this tab's audio. You can switch tabs now."
-      : '❌ ' + res?.error;
+  listenBtn.disabled = true;
+  try {
+    const state = await chrome.runtime.sendMessage({ action: MSG.GET_STATE });
+    if (['listening', 'processing', 'starting'].includes(state?.status)) {
+      await chrome.runtime.sendMessage({ action: MSG.STOP_LISTENING });
+      statusEl.textContent = '🛑 Stopped listening.';
+    } else {
+      const tab = await activeTab();
+      if (!tab) { statusEl.textContent = '❌ No active tab.'; return; }
+      statusEl.textContent = '⏳ Starting…';
+      const res = await chrome.runtime.sendMessage({ action: MSG.START_LISTENING, tabId: tab.id });
+      statusEl.textContent = res?.ok
+        ? "🎧 Listening to this tab's audio. You can switch to another tab now."
+        : `❌ ${res?.error || 'Could not start'}`;
+    }
+  } finally {
+    listenBtn.disabled = false;
+    refresh();
   }
-  refreshListenButton();
 });
 
-document.getElementById('sendCmd').addEventListener('click', async () => {
-  const text = document.getElementById('manualCmd').value.trim();
+$('sendCmd').addEventListener('click', async () => {
+  const text = $('manualCmd').value.trim();
   if (!text) return;
   const tab = await activeTab();
   if (!tab) return;
-  statusEl.textContent = '🔍 Finding element on page...';
+  statusEl.textContent = '🔍 Finding element on page…';
   const res = await chrome.runtime.sendMessage({ action: MSG.MANUAL_COMMAND, text, tabId: tab.id });
   statusEl.textContent = res?.status || 'Done';
 });
 
-document.getElementById('clearBtn').addEventListener('click', async () => {
+$('manualCmd').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('sendCmd').click(); });
+
+$('clearBtn').addEventListener('click', async () => {
   const tab = await activeTab();
   if (!tab) return;
-  chrome.tabs.sendMessage(tab.id, { action: MSG.CLEAR_HIGHLIGHT }, () => void chrome.runtime.lastError);
-  statusEl.textContent = 'Cleared pointer';
+  chrome.tabs.sendMessage(tab.id, { action: MSG.CLEAR_HIGHLIGHT }, { frameId: 0 }, () => void chrome.runtime.lastError);
+  statusEl.textContent = 'Cleared pointer.';
 });
 
-refreshListenButton();
-
+chrome.storage.onChanged.addListener((_changes, area) => { if (area === 'session') refresh(); });
+init();
