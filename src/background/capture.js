@@ -1,9 +1,12 @@
 // Starts/stops tab audio capture through the offscreen document.
+import { DEFAULT_LIVE_MODEL } from '../shared/constants.js';
 import { MSG, TARGET_OFFSCREEN } from '../shared/messages.js';
 import { getSession, updateSession } from './session.js';
 
 export async function startListening(tabId) {
   if (!tabId) throw new Error('No tab to listen to');
+  const { geminiApiKey, liveModel } = await chrome.storage.local.get(['geminiApiKey', 'liveModel']);
+  if (!geminiApiKey) throw new Error('Voice needs a Gemini API key. Save one first.');
   const streamId = await chrome.tabCapture.getMediaStreamId({ targetTabId: tabId });
   if (!(await chrome.offscreen.hasDocument())) {
     await chrome.offscreen.createDocument({
@@ -13,7 +16,13 @@ export async function startListening(tabId) {
     });
   }
   await updateSession({ active: true, captureTabId: tabId, targetTabId: null, lastTranscript: '' });
-  chrome.runtime.sendMessage({ target: TARGET_OFFSCREEN, action: MSG.START_CAPTURE, streamId });
+  chrome.runtime.sendMessage({
+    target: TARGET_OFFSCREEN,
+    action: MSG.START_CAPTURE,
+    streamId,
+    apiKey: geminiApiKey,
+    model: (liveModel || '').trim() || DEFAULT_LIVE_MODEL
+  });
 }
 
 export async function stopListening() {
