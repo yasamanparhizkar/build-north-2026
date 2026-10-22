@@ -14,3 +14,4 @@ export const SILENCE_RMS = 0.005;
 export const MAX_ELEMENTS = 150;
 /** The pointer removes itself after this long. */
 export const HIGHLIGHT_TIMEOUT_MS = 20000;
+

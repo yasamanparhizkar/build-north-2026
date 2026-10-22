@@ -11,3 +11,4 @@ export async function updateSession(patch) {
   await chrome.storage.session.set({ session: next });
   return next;
 }
+

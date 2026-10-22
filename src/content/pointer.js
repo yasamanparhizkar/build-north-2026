@@ -44,3 +44,4 @@ export function clearHighlight() {
   currentTarget = null;
   document.getElementById('senior-helper-pointer')?.remove();
 }
+

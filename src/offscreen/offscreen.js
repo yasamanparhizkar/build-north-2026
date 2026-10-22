@@ -54,3 +54,4 @@ function flushClip(inputRate) {
   const wav = encodeWav(downsample(merged, inputRate, TARGET_SAMPLE_RATE), TARGET_SAMPLE_RATE);
   chrome.runtime.sendMessage({ action: MSG.AUDIO_CLIP, audioBase64: toBase64(wav), mimeType: 'audio/wav' });
 }
+

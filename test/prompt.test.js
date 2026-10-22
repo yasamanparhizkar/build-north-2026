@@ -38,3 +38,4 @@ test('interpretResult points only at ids that exist', () => {
   const chatter = interpretResult({ isCommand: false, matchedId: 'sh-1', transcript: 'hi' }, elements);
   assert.equal(chatter.kind, 'not-command');
 });
+

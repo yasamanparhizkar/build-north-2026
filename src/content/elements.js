@@ -39,3 +39,4 @@ export function collectInteractiveElements() {
   }
   return list;
 }
+

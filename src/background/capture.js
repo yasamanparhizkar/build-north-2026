@@ -35,3 +35,4 @@ export async function trackActiveTab(tabId) {
   if (!s.active) return;
   await updateSession({ targetTabId: tabId === s.captureTabId ? null : tabId });
 }
+

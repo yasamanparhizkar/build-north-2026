@@ -62,3 +62,4 @@ export function concatChunks(chunks, totalLength) {
   for (const c of chunks) { merged.set(c, offset); offset += c.length; }
   return merged;
 }
+
