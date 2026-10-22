@@ -57,16 +57,18 @@ document.body.appendChild(badge);
 
 // 2. Scan the DOM for visible interactive elements
 function collectInteractiveElements() {
-  const selectors = 'button, a, input, [role="button"], [aria-label]';
+  const selectors = 'button, a, input, [role="button"], [aria-label], [data-tooltip]';
   const nodes = document.querySelectorAll(selectors);
   const elementsList = [];
   let idCounter = 1;
 
   nodes.forEach((el) => {
     const rect = el.getBoundingClientRect();
-    // Only include elements visible on screen
     if (rect.width > 10 && rect.height > 10 && rect.top >= 0 && rect.bottom <= window.innerHeight) {
-      const text = (el.innerText || el.getAttribute('aria-label') || el.getAttribute('title') || el.placeholder || '').trim().slice(0, 60);
+      const aria = el.getAttribute('aria-label') || el.getAttribute('data-tooltip') || el.getAttribute('title') || '';
+      const inner = (el.innerText || el.placeholder || '').trim();
+      const text = `${aria} ${inner}`.trim().replace(/\s+/g, ' ').slice(0, 80);
+
       if (text) {
         const id = `sh-${idCounter++}`;
         el.setAttribute('data-senior-id', id);
@@ -75,9 +77,8 @@ function collectInteractiveElements() {
       }
     }
   });
-  return elementsList.slice(0, 120); // Keep payload small and fast
+  return elementsList.slice(0, 120);
 }
-
 // 3. Draw the Highlighter & Pointer around the target element
 function highlightElement(seniorId, instructionText) {
   clearHighlight();
@@ -103,12 +104,7 @@ function highlightElement(seniorId, instructionText) {
   return true;
 }
 
-function clearHighlight() {
-  const existing = document.getElementById('senior-helper-pointer');
-  if (existing) existing.remove();
-}
-
-// 4. Send transcript + DOM elements to Gemini 2.5 Flash
+// 4. Send transcript + DOM elements to Gemini via background.js
 async function processCommandWithLLM(commandText) {
   const { geminiApiKey } = await chrome.storage.local.get(['geminiApiKey']);
   if (!geminiApiKey) {
@@ -122,41 +118,43 @@ You are an assistant helping a senior citizen find an element on a webpage based
 Spoken utterance: "${commandText}"
 Available webpage elements: ${JSON.stringify(elements)}
 
-If the utterance contains an instruction to look at or click an element, pick the best matching element ID and write a short, encouraging 3-word label for the senior (e.g., "Click Compose Here").
+If the utterance contains an instruction to look at or click an element, pick the best matching element ID and write a short, encouraging 3-word label for the senior (e.g., "Click Captions Here").
 Respond ONLY in valid JSON format:
 {"matchedId": "sh-12" or null, "label": "Click Here"}
 `;
 
-  try {
-    badge.style.display = 'block';
-    badge.innerText = `🤔 Thinking: "${commandText}"...`;
+  badge.style.display = 'block';
+  badge.innerText = `🤔 Thinking: "${commandText}"...`;
 
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${geminiApiKey}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        contents: [{ parts: [{ text: prompt }] }],
-        generationConfig: { responseMimeType: "application/json" }
-      })
-    });
+  return new Promise((resolve) => {
+    chrome.runtime.sendMessage(
+      { action: 'CALL_GEMINI', apiKey: geminiApiKey, prompt },
+      (response) => {
+        if (chrome.runtime.lastError || !response) {
+          badge.innerText = '❌ Extension reloaded—please refresh this webpage!';
+          resolve('Refresh webpage');
+          return;
+        }
 
-    const data = await response.json();
-    const resultText = data.candidates?.[0]?.content?.parts?.[0]?.text;
-    const parsed = JSON.parse(resultText);
+        if (!response.success) {
+          console.error('Gemini API Error:', response.error);
+          badge.innerText = `❌ Error: ${response.error}`;
+          resolve(`Error: ${response.error}`);
+          return;
+        }
 
-    if (parsed.matchedId) {
-      highlightElement(parsed.matchedId, parsed.label);
-      badge.innerText = `✅ Pointing to: ${parsed.label}`;
-      return `Highlighted ${parsed.matchedId}`;
-    } else {
-      badge.innerText = `👂 Heard: "${commandText}" (No matching button found)`;
-      return 'No match found';
-    }
-  } catch (err) {
-    console.error('Senior Helper Error:', err);
-    badge.innerText = '❌ Error contacting Gemini API';
-    return 'API Error';
-  }
+        const parsed = response.data;
+        if (parsed.matchedId) {
+          highlightElement(parsed.matchedId, parsed.label);
+          badge.innerText = `✅ Pointing to: ${parsed.label}`;
+          resolve(`Highlighted ${parsed.matchedId}`);
+        } else {
+          badge.innerText = `👂 Heard: "${commandText}" (No matching button on this screen)`;
+          resolve('No match found');
+        }
+      }
+    );
+  });
 }
 
 // 5. Continuous Voice Recognition (Web Speech API)
