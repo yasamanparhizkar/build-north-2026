@@ -40,3 +40,4 @@ test('callGemini rejects an empty key without calling the network', async () => 
   const fetchImpl = async () => { throw new Error('should not be called'); };
   await assert.rejects(callGemini({ apiKey: '  ', input: { text: 'x' }, elements: [] }, fetchImpl), /empty/);
 });
+

@@ -34,3 +34,4 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
 });
 
 chrome.tabs.onActivated.addListener(({ tabId }) => trackActiveTab(tabId));
+

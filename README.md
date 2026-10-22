@@ -58,7 +58,7 @@ Modules marked *pure* have no Chrome or DOM dependencies, so they are unit teste
 
 ## Use
 
-- **Quick test, no audio:** open Gmail, open the popup, type "click the compose button" and press **Highlight Element**.
+- **Quick test, no audio and no API key:** open Gmail, open the popup, type "click the compose button" and press **Highlight Element**. Typed commands go through an offline matcher (`src/background/matcher.js`) that scores element text and spatial hints like "on the left". Gemini is only called when the matcher is unsure and a key is saved.
 - **Live:** on the **Meet tab**, open the popup and press **Start Listening**. Then switch to the page being shared. The pointer appears on whichever non-Meet tab is active, or on the Meet tab if there is none.
 
 ## Tests
@@ -75,3 +75,4 @@ npm test
 - A sentence split across two 6-second clips may be missed, and responses are delayed by a few seconds.
 - Elements inside iframes are not scanned yet.
 - Free-tier Gemini quotas apply. Silent clips are skipped to conserve them.
+

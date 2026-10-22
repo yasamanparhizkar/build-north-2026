@@ -20,3 +20,4 @@ export async function sendToTab(tabId, msg) {
     throw lastError;
   }
 }
+

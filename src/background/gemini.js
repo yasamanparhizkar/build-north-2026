@@ -28,3 +28,4 @@ export async function callGemini(
   const text = (data.candidates?.[0]?.content?.parts || []).map((p) => p.text || '').join('');
   return parseModelJson(text);
 }
+

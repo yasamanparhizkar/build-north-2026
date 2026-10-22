@@ -38,3 +38,4 @@ test('a failing job is reported and does not block the queue', async () => {
   assert.deepEqual(errors, ['boom']);
   assert.ok(ran);
 });
+

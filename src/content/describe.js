@@ -17,3 +17,4 @@ export function isRectVisible(rect, vw, vh, minSize = 10) {
   return rect.width > minSize && rect.height > minSize &&
     rect.bottom > 0 && rect.right > 0 && rect.top < vh && rect.left < vw;
 }
+
