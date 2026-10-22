@@ -49,3 +49,4 @@ export function accessibleName(el, role = computeRole(el)) {
   if (!normalizeName(name)) name = iconName(el) || el.getAttribute('title') || el.getAttribute('data-tooltip') || '';
   return normalizeName(name);
 }
+

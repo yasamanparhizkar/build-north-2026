@@ -7,6 +7,18 @@ A Chrome extension (Manifest V3) that helps an older adult find things on a web 
 - Near-zero cost: no backend, no database. Typed commands work offline with no API key. Voice uses your own Gemini API key (free tier available).
 - The family member installs nothing.
 
+## Contents
+
+1. [Project status](#project-status)
+2. [Install the extension](#1-install-the-extension)
+3. [Test the repo (automated tests)](#2-test-the-repo-automated-tests)
+4. [Test the app by hand: typed commands, no key](#3-test-the-app-by-hand-typed-commands-no-key)
+5. [Test voice in a real Google Meet call](#4-test-voice-in-a-real-google-meet-call)
+6. [Development workflow](#development-workflow)
+7. [Where is the API key stored?](#where-is-the-api-key-stored)
+8. [How it works](#how-it-works) · [Project layout](#project-layout) · [Configuration](#configuration)
+9. [Privacy and security](#privacy-and-security) · [Troubleshooting](#troubleshooting) · [Known limitations](#known-limitations) · [Roadmap](#roadmap)
+
 ## Project status
 
 | Area | Status |
@@ -14,18 +26,181 @@ A Chrome extension (Manifest V3) that helps an older adult find things on a web 
 | Typed commands (offline matcher), pointer, DOM scanning | ✅ Verified in real Chrome, including live Wikipedia and example.com |
 | Snapshot validation, privacy filters, no-click guarantee | ✅ Verified in real Chrome (integration tests) |
 | Voice pipeline logic (dedupe, stale results, rate limits) | ✅ Verified in real Chrome with a **mocked** Gemini |
-| Meet tab audio capture + real Gemini audio understanding | ⚠️ **Not yet verified in a real call.** See [docs/TESTING.md](docs/TESTING.md) |
+| Meet tab audio capture + real Gemini audio understanding | ⚠️ **Not yet verified in a real call.** Section 4 / [docs/TESTING.md](docs/TESTING.md) |
 | Speech-to-pointer latency | ⚠️ Not measured yet. Recorded live in popup → Diagnostics |
 
-## Quick start (2 minutes, no API key)
+---
 
-1. Open `chrome://extensions`, turn on **Developer mode**, click **Load unpacked**, and select this folder.
-2. Open <https://en.wikipedia.org> and click the extension icon.
-3. Type `where is log in` and press **Highlight Element**. A magenta pointer appears on "Log in".
+## 1. Install the extension
 
-For voice, add a Gemini API key (see [Install](#install)) and follow [Use → Live call](#use).
+**You need:** Google Chrome **116 or newer** (`chrome://version`).
 
-## Architecture
+1. Get the code:
+   ```
+   git clone https://github.com/yasamanparhizkar/build-north-2026.git
+   cd build-north-2026
+   git checkout dev
+   ```
+   (Or use your existing folder, e.g. `Z:\senior-helper-extension`.)
+2. Open `chrome://extensions` and switch on **Developer mode** (top right).
+3. Click **Load unpacked** and select the folder that contains `manifest.json`.
+4. Click the puzzle icon in the toolbar and pin **Senior Helper Pointer**.
+5. *(Voice only)* Get a free key at <https://aistudio.google.com> → *Get API key*. Then open the extension popup → **Settings**, paste the key, and click **Save Settings**.
+
+✅ **Check:** the extension card shows no red *Errors* button, and clicking the icon opens a popup that says **Not listening**.
+
+**After every code change** (or `git pull`), click **↻ reload** on the extension card in `chrome://extensions`, then reload the web pages you test on.
+
+---
+
+## 2. Test the repo (automated tests)
+
+### Prerequisites
+- **Node.js 20+** and **Git**. Check with `node --version`.
+  - Windows: `winget install OpenJS.NodeJS.LTS` (or the installer from <https://nodejs.org>). Then open a new terminal.
+  - If PowerShell says *"running scripts is disabled"* for `npm`, use `npm.cmd` instead of `npm`, or run once: `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned`.
+
+### Steps
+```
+npm install                # once: dev tools only (Puppeteer). Downloads "Chrome for Testing" (~150 MB)
+npm test                   # unit tests incl. manifest check, about 5 s
+npm run test:integration   # loads the real extension in Chrome for Testing, about 30-60 s
+```
+`npm install` puts Chrome for Testing in `%USERPROFILE%\.cache\puppeteer` (macOS/Linux: `~/.cache/puppeteer`). Your normal Chrome profile is not touched.
+
+### Expected output
+`npm test` ends with:
+```
+# tests 92
+# pass 92
+# fail 0
+```
+`npm run test:integration` ends with:
+```
+# tests 28
+# pass 28
+# fail 0
+```
+It also prints lines like:
+```
+#   en.wikipedia.org: 70 elements in 15 ms
+#   "where is log in" -> ✅ Pointing to: Click Log in (local) (45 ms end-to-end, offline)
+```
+
+- **Network:** the 3 real-site tests (Wikipedia, example.com) need internet. They are *skipped*, not failed, if a site is unreachable.
+- **Screenshots** go to `test/integration/screenshots/` (git-ignored). Set the `SCREENSHOT_DIR` environment variable to change this.
+- **No API key is needed.** The voice tests replace Gemini with a fake inside the test browser.
+
+### What the suites cover
+
+| Suite | Covers |
+|---|---|
+| Unit (`test/*.test.js`) | Audio encoding/resampling, voice-activity detection and overlapping clips, prompt and schema, response validation (made-up ids, unsupported actions, malformed JSON), Gemini client (model fallback, 429, 5xx, timeout), matcher and synonyms, ambiguity handling, session state machine, stale-result rejection, dedupe, metrics, snapshot registry, URL filter, Live protocol |
+| Integration (`test/integration/`) | Injection, shadow DOM, iframes, privacy (field values never sent), snapshot validation, pointer tracking, **zero clicks**, re-injection, popup and "Forget API key", restricted pages, voice pipeline with mocked Gemini, real Wikipedia and example.com |
+| Manual (sections 3–4, [docs/TESTING.md](docs/TESTING.md)) | Real Gmail/Meet pages, real tab audio capture, real Gemini, latency |
+
+---
+
+## 3. Test the app by hand: typed commands, no key
+
+These checks use the popup's **Test a command** box. No API key and no Meet call are needed. Open each page, click the extension icon, type the command, and press **Enter**.
+
+| # | Page | Type | Expected result |
+|---|---|---|---|
+| 1 | <https://en.wikipedia.org> | `where is log in` | Magenta box + arrow + "👆 Click Log in" on **Log in** (top right). Popup: `✅ Pointing to: Click Log in (local)` |
+| 2 | Same | `click in the search box` | Pointer on the **Search Wikipedia** box |
+| 3 | Same | `click the print button` | No pointer. Badge: *"I couldn't find "click the print button" on this page."* |
+| 4 | Same | (wait 20 s after #1) | The pointer disappears by itself |
+| 5 | Same | `where is log in`, then click **Clear Pointer** | The pointer disappears immediately |
+| 6 | Same | `where is log in`, then scroll the page | The pointer stays attached to the link |
+| 7 | <https://mail.google.com> (signed in) | `click compose` | Pointer on **Compose** (top left) |
+| 8 | Gmail | `where is the search box` | Pointer on **Search mail** |
+| 9 | Gmail | `click settings` | Pointer on the gear icon (an icon-only button) |
+| 10 | <https://meet.google.com> (in a call) | `where is the mic button` | Pointer on the microphone button |
+| 11 | `chrome://extensions` | `click compose` | Popup: *"Chrome does not allow the helper on this page"* |
+
+**Safety check:** during all of the above, nothing should ever be clicked, typed or submitted by the extension.
+
+---
+
+## 4. Test voice in a real Google Meet call
+
+**You need:** a saved Gemini API key (section 1, step 5), one **computer** with the extension (the *senior* side) and one **phone or second computer** (the *family member*). The family member side needs nothing installed. Use headphones on the senior computer so the family member's voice isn't picked up twice.
+
+### Quick voice test (about 5 minutes)
+
+1. **Computer:** open <https://meet.google.com>, click **New meeting** → *Start an instant meeting*, and copy the link.
+2. **Phone:** join the same meeting with the link (any Google account, or as a guest).
+3. **Computer, on the Meet tab:** click the extension icon → **🎧 Start Listening**.
+   ✅ Toolbar badge shows red **ON**, popup shows **🎧 Listening**, and a red *"🎧 Helper is listening [Stop]"* pill appears top right.
+4. **Phone:** say something. ✅ You still hear it clearly on the computer (no silence, no echo).
+5. **Computer:** open a new tab with <https://en.wikipedia.org> (or Gmail) and stay on it.
+6. **Phone:** say clearly: *"Click the Log in button."* (on Gmail: *"Click the Compose button."*)
+   ✅ Within a few seconds the pointer appears on that control.
+7. **Phone:** chat normally for 30 s (*"How was your day?"*). ✅ No pointer appears.
+8. **Phone:** say *"Click the print button."* ✅ Badge: *"I couldn't find…"*, no pointer.
+9. **Computer:** open the popup → **Diagnostics**. Write down *median Gemini* and *median speech→pointer*.
+10. **Computer:** click **Stop** on the red pill. ✅ Badge clears, the pill disappears, and Meet audio keeps playing normally.
+
+If any step fails, see [Troubleshooting](#troubleshooting). For the full 15-step procedure (dropdown menus, duplicates, closing the Meet tab, extension restart) and a results log, use **[docs/TESTING.md](docs/TESTING.md)**.
+
+### Where to look while testing
+- **Service worker log:** `chrome://extensions` → Senior Helper Pointer → *service worker* link → Console.
+- **Audio capture log:** same card → *Inspect views: src/offscreen/offscreen.html* (only shown while listening).
+- **Page side:** DevTools on the page → Console (content-script warnings start with `[Senior Helper]`).
+
+---
+
+## Development workflow
+
+### Branches
+- `main`: stable, demo-ready.
+- `dev`: integration branch. All work lands here first.
+- Feature work: `git checkout dev && git pull && git checkout -b feature/<short-name>`. Open a pull request into `dev`.
+- Merge `dev` → `main` only after `npm run test:all` passes **and** the quick voice test (section 4) passes.
+
+### Everyday loop
+1. Edit code in `src/`.
+2. `npm test` (fast, pure logic).
+3. `chrome://extensions` → **↻ reload** the extension → reload the test page.
+4. Try it by hand (section 3, or section 4 for voice changes).
+5. `npm run test:integration` before pushing.
+6. Commit with a clear message and push: `git push origin <branch>`.
+
+### Common changes
+- **Add a voice synonym** (e.g. "bin" → "trash"): edit `SYNONYMS` in `src/background/matcher.js` and add a case to `test/matcher.test.js`.
+- **Tune speed vs. accuracy:** edit the constants in `src/shared/constants.js` (see [Configuration](#configuration)).
+- **New message type:** add it to `src/shared/messages.js`. If a content script or the offscreen document sends it, update `CONTENT_ALLOWED` / `OFFSCREEN_ONLY`.
+- **No build step:** plain ES modules. Content scripts load through `loader.js` → dynamic `import()`, which is why `src/content/*.js` and `src/shared/*.js` are listed as web-accessible.
+
+### Before a pull request
+- [ ] `npm run test:all` is green.
+- [ ] Section 3 checks 1–6 pass by hand.
+- [ ] For voice/audio changes: section 4 quick voice test passes.
+- [ ] No API key, transcript or recording added to the repo (`git diff --cached` before committing).
+
+---
+
+## Where is the API key stored?
+
+**Only in your Chrome profile, never in this repository.**
+
+| Question | Answer |
+|---|---|
+| Where is it saved? | `chrome.storage.local` of this extension, inside your Chrome profile folder on disk (e.g. `%LOCALAPPDATA%\Google\Chrome\User Data\Default\Local Extension Settings\<extension-id>\`). |
+| Is it encrypted? | **No.** Anyone with access to your Windows account or profile folder could read it. It is not a secure vault. |
+| Is it in the code or git history? | **No.** The code reads it from storage at runtime. A scan of the working tree and the full git history found no Google API keys. Never paste a key into a source file. |
+| Who receives it? | Only Google's Gemini API, in the `x-goog-api-key` request header (clip mode, the default). The experimental Live mode puts it in the WebSocket URL, because browser WebSockets cannot set headers. |
+| Is it logged or synced? | Not logged by the extension. `storage.local` is not synced to other devices. |
+| Can web pages read it? | No. Content scripts never receive the key. It is used only in the service worker (and in the offscreen document in Live mode). |
+| How do I remove it? | Popup → Settings → **Forget API key**. Removing the extension also deletes it. |
+| What about the tests? | The integration tests use fake keys in a throwaway Chrome for Testing profile. |
+
+**Recommendations:** use your own key (free tier), restrict it in Google AI Studio / Cloud Console to the *Generative Language API*, click **Forget API key** on shared computers, and never publish a build with a key in it. A public Chrome Web Store release would need a small backend that issues short-lived tokens instead.
+
+---
+
+## How it works
 
 ```mermaid
 flowchart TD
@@ -50,7 +225,7 @@ flowchart TD
 **Capture tab vs. target tab.** Audio always comes from the Meet tab where you pressed *Start Listening*. The pointer goes on whatever normal tab is active in the last focused window. Switching tabs never touches the capture.
 
 **Flow for one spoken command:**
-1. The offscreen document plays the Meet audio back (capture mutes the tab otherwise) and runs an energy-based VAD with an adaptive noise floor.
+1. The offscreen document plays the Meet audio back (capture mutes the tab otherwise) and runs an energy-based voice-activity detector with an adaptive noise floor.
 2. A clip is sent **~0.7 s after speech ends**, or every **4 s** during long speech. Each clip holds up to **6 s** of audio, so consecutive clips overlap by 2 s and a sentence crossing a boundary is heard whole. Silence is never sent.
 3. The service worker drops stale work (old session, already-handled sequence, older than 15 s, rate-limited), asks the content script for a fresh **snapshot**, and sends the clip plus a compact element table (`[id, role, name, region, visible]`) to Gemini with a strict response schema.
 4. The answer is validated: unknown ids and unsupported intents are rejected, and confidence is clamped. Then it is combined with the deterministic matcher:
@@ -60,7 +235,7 @@ flowchart TD
 5. Duplicate commands from overlapping clips are suppressed (same target and element within 10 s). Results that arrive after *Stop* or after a newer highlight are discarded.
 6. The content script resolves `(snapshotId, id)` to the live element and checks it still exists, is visible, and still has the same accessible name. If the page re-rendered, it re-matches by role and name. Only then does it draw the pointer.
 
-**Typed commands** (popup) use the same path, except the offline matcher is tried first and Gemini (text) is only asked if the matcher is unsure and a key is saved.
+**Typed commands** use the same path, except the offline matcher is tried first and Gemini (text) is only asked if the matcher is unsure and a key is saved.
 
 **Session states:** `idle → starting → listening ⇄ processing → interrupted / error → idle`. Every Start or Stop bumps a *generation* number, so work started under an older session is discarded.
 
@@ -103,30 +278,10 @@ src/
 test/                  unit tests (node:test)
 test/integration/      real-Chrome tests (Puppeteer + Chrome for Testing)
 test/fixtures/         local test page (shadow DOM, iframe, privacy traps)
-docs/TESTING.md        manual end-to-end procedure for a real Meet call
+docs/TESTING.md        full manual procedure for a real Meet call + results log
 ```
 
 Modules marked *pure* have no Chrome or DOM dependencies and are unit tested in Node.
-
-## Install
-
-1. Open `chrome://extensions` and turn on **Developer mode**.
-2. Click **Load unpacked** and select this folder (the one containing `manifest.json`). Chrome 116 or later is required.
-3. Pin the extension. Open its popup, then **Settings**, and paste a Gemini API key from <https://aistudio.google.com> (only needed for voice). Click **Save Settings**.
-
-After pulling new code, click the **reload** icon on the extension card in `chrome://extensions`, then reload any open tabs.
-
-## Use
-
-- **Test without voice or a key:** open Gmail or Wikipedia, open the popup, type `click the compose button` or `where is log in`, and press **Highlight Element** (or Enter).
-- **Live call:**
-  1. Mom joins the Meet call and shares her window or screen.
-  2. On the **Meet tab**, she opens the popup and presses **Start Listening**. The toolbar badge shows **ON** and pages show a red *"Helper is listening [Stop]"* pill.
-  3. She switches to Gmail (or any page). Capture continues.
-  4. The family member says *"click the Compose button"*. The pointer appears for about 20 seconds.
-  5. Stop at any time with the pill's **Stop** button or the popup.
-
-**Example phrases that work:** "click Compose", "where is the mic button", "hang up the call", "the record button on the right", "click in the search box", "where is log in". If two controls fit equally, numbered choices appear so the family member can clarify.
 
 ## Configuration
 
@@ -134,7 +289,7 @@ After pulling new code, click the **reload** icon on the extension card in `chro
 
 | Setting | Default | Notes |
 |---|---|---|
-| Gemini API key | – | Required for voice only |
+| Gemini API key | – | Required for voice only. See [Where is the API key stored?](#where-is-the-api-key-stored) |
 | Model | `gemini-flash-latest` | Google's alias for the current Flash model. If the model is not found, an available Flash model is chosen automatically and saved here |
 | Voice mode | Audio clips | *Gemini Live streaming* is experimental |
 | Live model | see `constants.js` | Only used in Live mode |
@@ -152,30 +307,6 @@ After pulling new code, click the **reload** icon on the extension card in `chro
 | `MAX_ELEMENTS` / `MAX_SAME_NAME` | 180 / 4 | Prompt size limits |
 | `HIGHLIGHT_TIMEOUT_MS` | 20000 | Pointer lifetime |
 
-## Tests
-
-```
-npm install                # dev only: Puppeteer + Chrome for Testing
-npm test                   # 90 unit tests (Node 20+)
-npm run test:integration   # 27 tests that load the real extension in Chrome for Testing
-npm run test:all           # both
-```
-
-| Suite | Covers |
-|---|---|
-| Unit (`test/*.test.js`) | Audio encoding/resampling, VAD and overlapping clips, prompt/schema, response validation, Gemini client (404 fallback, 429, 5xx, timeout), matcher and synonyms, decision/ambiguity, session state machine, stale/dedupe, metrics, snapshot registry, URL filter, Live protocol |
-| Integration (`test/integration/`) | Injection, shadow DOM, iframe coordinates, privacy (no field values sent), snapshot validation, pointer tracking, zero clicks, re-injection, popup, restricted pages, voice pipeline with mocked Gemini, real Wikipedia and example.com |
-| Manual ([docs/TESTING.md](docs/TESTING.md)) | Real Meet call: capture, playback, tab switching, Gmail/Meet controls, latency |
-
-The integration suite needs network access for the real-site tests (they are skipped if a site is unreachable). Set `SCREENSHOT_DIR` to choose where screenshots are written (default `test/integration/screenshots/`, git-ignored).
-
-## Development
-
-- **Add a synonym:** extend `SYNONYMS` in `src/background/matcher.js` and add a case to `test/matcher.test.js`.
-- **Debug the service worker:** `chrome://extensions` → *Service worker* → Console. **Offscreen document:** *Inspect views: offscreen.html* (only present while listening).
-- **Message rules:** message names live in `src/shared/messages.js`. Content scripts may only send `STOP_LISTENING`, and audio messages are only accepted from the offscreen document.
-- **No build step:** plain ES modules. Content scripts load through `loader.js` → dynamic `import()`, which is why `src/content/*.js` and `src/shared/*.js` are web-accessible.
-
 ## Privacy and security
 
 - Capture starts only when you press **Start Listening**. A badge and an on-page pill show it is active, and Stop is one click away.
@@ -184,25 +315,26 @@ The integration suite needs network access for the real-site tests (they are ski
 - No audio or transcripts are written to disk. The last transcript is kept only in memory (`chrome.storage.session`) for context and is cleared on Stop.
 - Page text is treated as untrusted data: it is JSON-encoded in the prompt, the model's output is schema-validated, and returned ids must be in the submitted list. Nothing the model returns is executed or used as a selector.
 - Web pages cannot drive the extension: messages are checked by sender type, and content scripts may only send *Stop*.
-- **API key:** stored in `chrome.storage.local`. That is **not** a secure vault. Use your own key. Never publish a build that contains a key. Public distribution would need a small token-issuing backend.
 - `web_accessible_resources` exposes the content-script modules (needed to load ES modules), so a web page can detect that the extension is installed.
 
 ## Troubleshooting
 
 | Symptom | What to check |
 |---|---|
-| **Meet audio not captured** | Press **Start Listening** from the popup *while the Meet tab is active* (Chrome requires the extension to be invoked on that tab). Look at the popup state line. `chrome://extensions` → *Service worker* → Console shows errors. A tab already captured by another extension cannot be captured twice. |
-| **Meet audio becomes silent** | The offscreen document plays the audio back. Open `chrome://extensions` → *Inspect views: offscreen.html* → Console. Press Stop and Start again. If the Meet tab was reloaded, capture ends (state: *interrupted*). |
+| **Meet audio not captured** | Press **Start Listening** from the popup *while the Meet tab is active* (Chrome requires the extension to be invoked on that tab). Look at the popup state line. Check the service worker console. A tab already captured by another extension cannot be captured twice. |
+| **Meet audio becomes silent** | The offscreen document plays the audio back. Check *Inspect views: offscreen.html* → Console. Press Stop and Start again. If the Meet tab was reloaded, capture ends (state: *interrupted*). |
 | **Gemini errors** | The popup state shows the message. `API key rejected` means re-paste the key. `Rate limit` means the helper pauses automatically. `Model not found` means it auto-switches to an available Flash model (saved in Settings), or you can enter a model manually. |
 | **No matching element** | Use the popup test box to check the page has a control with that label. Icon-only buttons need an `aria-label`/`title`. Cross-origin iframes and canvas-drawn controls are not supported. |
 | **Not running on a page** | Content scripts don't run on `chrome://`, the Chrome Web Store, the PDF viewer or `file://` pages. Tabs opened before installing are injected automatically on first use. |
 | **Service worker / offscreen errors** | `chrome://extensions` → reload the extension. After a service-worker restart, the session is reconciled: if the offscreen document is gone, the state becomes *interrupted*. |
 | **Pointer on the wrong tab** | The pointer goes to the active tab of the *last focused* Chrome window. Click into the window Mom is looking at. |
+| **`npm` blocked in PowerShell** | Use `npm.cmd …` or `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned`. |
+| **Integration tests can't find Chrome** | Run `npm install` again (it downloads Chrome for Testing), or `npx puppeteer browsers install chrome`. |
 | **Popup diagnostics** | *Diagnostics* shows the last transcript, median Gemini / match / speech-to-pointer latency, API calls per minute and error rate. |
 
 ## Known limitations
 
-- Voice has not yet been validated in a real Meet call (see docs/TESTING.md). Speech-to-pointer latency is expected to be roughly 0.7 s (end of speech) + upload + Gemini time; measure it with Diagnostics.
+- Voice has not yet been validated in a real Meet call (section 4). Speech-to-pointer latency is expected to be roughly 0.7 s (end of speech) + upload + Gemini time; measure it with Diagnostics.
 - Captured audio is the whole Meet tab playback, including the senior's own voice if Meet echoes it, and any shared media. Gemini decides what is an instruction.
 - Cross-origin iframes, closed shadow roots, canvas UIs and native browser dialogs are not scanned.
 - Elements in the browser's top layer (`<dialog>.showModal()`, fullscreen) can cover the overlay.

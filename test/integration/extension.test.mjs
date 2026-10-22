@@ -244,6 +244,18 @@ test('popup renders and reports idle state', async () => {
   await popup.close();
 });
 
+test('popup "Forget API key" removes the stored key', async () => {
+  await sw(() => chrome.storage.local.set({ geminiApiKey: 'temporary-test-key' }));
+  const id = new URL(worker.url()).host;
+  const popup = await browser.newPage();
+  await popup.goto(`chrome-extension://${id}/src/popup/popup.html`);
+  await popup.waitForFunction(() => document.getElementById('apiKey').value === 'temporary-test-key');
+  await popup.evaluate(() => document.getElementById('forgetKey').click());
+  await popup.waitForFunction(() => document.getElementById('status').textContent.includes('removed'));
+  assert.equal(await sw(async () => (await chrome.storage.local.get('geminiApiKey')).geminiApiKey), undefined);
+  await popup.close();
+});
+
 test('restricted pages fail gracefully', async () => {
   const p = await browser.newPage();
   await p.goto('chrome://version');

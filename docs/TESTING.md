@@ -37,3 +37,4 @@ Fill in with real observations. Latency values come from popup → Diagnostics.
 | | | | | | |
 
 **Acceptance targets** (goals, not current results): ≥ 90% correct on a 20–30 command set, zero unintended clicks, no stale pointer after expiry, no duplicate highlight per utterance.
+

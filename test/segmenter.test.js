@@ -82,3 +82,4 @@ test('speechEndedAt excludes trailing silence (for latency metrics)', () => {
   assert.equal(clips.length, 1);
   assert.ok(clips[0].speechEndedAt <= 1000 + 400, `speechEndedAt ${clips[0].speechEndedAt}`);
 });
+
