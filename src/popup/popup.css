@@ -1,11 +1,22 @@
-body { width: 300px; font-family: Arial, sans-serif; padding: 12px; margin: 0; }
-h3 { margin-top: 0; color: #1a73e8; }
-label { font-size: 12px; }
+body { width: 320px; font-family: Arial, sans-serif; padding: 12px; margin: 0; font-size: 13px; }
+h3 { margin: 0 0 8px; color: #1a73e8; }
+label { display: block; font-size: 12px; margin-top: 8px; }
 hr { margin: 12px 0; border: 0; border-top: 1px solid #ddd; }
-input, button { width: 100%; padding: 8px; margin-top: 6px; box-sizing: border-box; border-radius: 4px; border: 1px solid #ccc; }
+input, select, button { width: 100%; padding: 8px; margin-top: 6px; box-sizing: border-box; border-radius: 4px; border: 1px solid #ccc; font-size: 13px; }
 button { background: #1a73e8; color: white; border: none; font-weight: bold; cursor: pointer; }
-button:hover { background: #1557b0; }
-button.listen { background: #d93025; }
+button:hover { filter: brightness(0.92); }
+button.listen { background: #d93025; font-size: 15px; padding: 10px; }
+button.listen.stop { background: #202124; }
 button.clear { background: #e8eaed; color: #333; }
-#status { margin-top: 10px; font-size: 12px; color: #444; background: #f1f3f4; padding: 8px; border-radius: 4px; }
-
+#status { margin-top: 10px; font-size: 12px; color: #444; background: #f1f3f4; padding: 8px; border-radius: 4px; word-break: break-word; }
+.state { padding: 8px; border-radius: 4px; font-weight: bold; text-align: center; }
+.state.idle { background: #f1f3f4; color: #444; }
+.state.starting, .state.processing { background: #e8f0fe; color: #1a73e8; }
+.state.listening { background: #fce8e6; color: #d93025; }
+.state.interrupted, .state.error { background: #fef7e0; color: #b06000; }
+.hint { font-size: 12px; color: #b06000; margin-top: 4px; }
+.hidden { display: none; }
+details { margin-top: 10px; }
+summary { cursor: pointer; font-weight: bold; }
+.note { font-size: 11px; color: #5f6368; margin: 8px 0 0; }
+.diag { font-family: Consolas, monospace; font-size: 11px; white-space: pre-wrap; background: #f8f9fa; padding: 6px; border-radius: 4px; margin-top: 6px; }
