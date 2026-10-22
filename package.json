@@ -1,0 +1,11 @@
+{
+  "name": "senior-helper-extension",
+  "version": "1.1.0",
+  "private": true,
+  "description": "Chrome extension that points at the right button for seniors, guided by a family member's voice on Google Meet.",
+  "type": "module",
+  "engines": { "node": ">=20" },
+  "scripts": {
+    "test": "node --test test/*.test.js"
+  }
+}

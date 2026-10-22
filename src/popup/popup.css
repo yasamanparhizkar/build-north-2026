@@ -1,0 +1,10 @@
+body { width: 300px; font-family: Arial, sans-serif; padding: 12px; margin: 0; }
+h3 { margin-top: 0; color: #1a73e8; }
+label { font-size: 12px; }
+hr { margin: 12px 0; border: 0; border-top: 1px solid #ddd; }
+input, button { width: 100%; padding: 8px; margin-top: 6px; box-sizing: border-box; border-radius: 4px; border: 1px solid #ccc; }
+button { background: #1a73e8; color: white; border: none; font-weight: bold; cursor: pointer; }
+button:hover { background: #1557b0; }
+button.listen { background: #d93025; }
+button.clear { background: #e8eaed; color: #333; }
+#status { margin-top: 10px; font-size: 12px; color: #444; background: #f1f3f4; padding: 8px; border-radius: 4px; }
