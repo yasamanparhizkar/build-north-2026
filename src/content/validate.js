@@ -34,3 +34,4 @@ export function resolveTarget(registry, snapshotId, target) {
   if (entry?.rect) return { el: nearestTo(entry.rect, same).el, rematched: true };
   return { el: null, reason: 'ambiguous-after-change' };
 }
+

@@ -43,3 +43,4 @@ export function summarize(metrics, now) {
     highlights: metrics.highlights
   };
 }
+

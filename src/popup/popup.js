@@ -62,6 +62,12 @@ $('saveKey').addEventListener('click', async () => {
   statusEl.textContent = '✅ Settings saved.';
 });
 
+$('forgetKey').addEventListener('click', async () => {
+  await chrome.storage.local.remove('geminiApiKey');
+  $('apiKey').value = '';
+  statusEl.textContent = '🗑️ API key removed from this browser.';
+});
+
 listenBtn.addEventListener('click', async () => {
   listenBtn.disabled = true;
   try {
