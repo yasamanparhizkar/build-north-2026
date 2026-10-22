@@ -12,14 +12,16 @@ async function refreshListenButton() {
     : '🎧 Start Listening to This Tab (open on the Meet tab)';
 }
 
-chrome.storage.local.get(['geminiApiKey'], (res) => {
+chrome.storage.local.get(['geminiApiKey', 'liveModel'], (res) => {
   if (res.geminiApiKey) document.getElementById('apiKey').value = res.geminiApiKey;
+  if (res.liveModel) document.getElementById('liveModel').value = res.liveModel;
 });
 
 document.getElementById('saveKey').addEventListener('click', () => {
-  const key = document.getElementById('apiKey').value.trim();
-  chrome.storage.local.set({ geminiApiKey: key }, () => {
-    statusEl.textContent = '✅ API Key saved!';
+  const geminiApiKey = document.getElementById('apiKey').value.trim();
+  const liveModel = document.getElementById('liveModel').value.trim();
+  chrome.storage.local.set({ geminiApiKey, liveModel }, () => {
+    statusEl.textContent = '✅ Settings saved!';
   });
 });
 
