@@ -1,9 +1,9 @@
 {
   "manifest_version": 3,
   "name": "Senior Helper Pointer",
-  "version": "1.0",
-  "description": "Highlights web elements for seniors based on voice instructions.",
-  "permissions": ["activeTab", "scripting", "storage"],
+  "version": "1.1",
+  "description": "Listens to a family member on Google Meet and points at the right button on the senior's screen.",
+  "permissions": ["activeTab", "scripting", "storage", "tabCapture", "offscreen", "tabs"],
   "host_permissions": [
     "https://generativelanguage.googleapis.com/*",
     "<all_urls>"
@@ -20,4 +20,6 @@
       "js": ["content.js"]
     }
   ]
+}
+
 }
