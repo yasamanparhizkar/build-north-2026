@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <h3>👵 Senior Helper</h3>
+
+  <label>Gemini API Key (Free at aistudio.google.com):</label>
+  <input type="password" id="apiKey" placeholder="Paste Gemini API Key..." />
+  <button id="saveKey">Save API Key</button>
+
+  <hr>
+
+  <button id="toggleListen" class="listen">🎧 Start Listening to This Tab</button>
+
+  <label>Test Command (no audio needed):</label>
+  <input type="text" id="manualCmd" placeholder="e.g., Click the Compose button" />
+  <button id="sendCmd">Highlight Element</button>
+  <button id="clearBtn" class="clear">Clear Pointer</button>
+
+  <div id="status">Ready. Open any page (like Gmail or Meet) to test!</div>
+
+  <script type="module" src="popup.js"></script>
+</body>
+</html>
