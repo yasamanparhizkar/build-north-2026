@@ -49,3 +49,4 @@ test('concatChunks joins in order', () => {
   const out = concatChunks([new Float32Array([1, 2]), new Float32Array([3])], 3);
   assert.deepEqual([...out], [1, 2, 3]);
 });
+

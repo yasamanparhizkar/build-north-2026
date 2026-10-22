@@ -20,3 +20,4 @@ export const MSG = Object.freeze({
 
 /** Messages with this `target` are only handled by the offscreen document. */
 export const TARGET_OFFSCREEN = 'offscreen';
+

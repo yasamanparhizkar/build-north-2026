@@ -60,3 +60,4 @@ export function interpretResult(result, elements) {
   if (!valid) return { kind: 'no-match', transcript };
   return { kind: 'point', id: result.matchedId, label: result.label, transcript };
 }
+

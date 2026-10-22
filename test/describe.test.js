@@ -22,3 +22,4 @@ test('isRectVisible rejects tiny and off-screen rects', () => {
   assert.ok(!isRectVisible(rect(10, 900, 50, 50), 1000, 800));
   assert.ok(!isRectVisible(rect(-100, 10, 50, 50), 1000, 800));
 });
+

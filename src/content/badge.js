@@ -15,3 +15,4 @@ export function showStatus(text, autoHideMs) {
   clearTimeout(timer);
   if (autoHideMs) timer = setTimeout(() => { badge.style.display = 'none'; }, autoHideMs);
 }
+
