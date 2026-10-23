@@ -18,7 +18,10 @@ const CONTAINER_SELECTOR = 'button, a[href], [role="button"], [role="link"], [ro
 const MAX_NODES = 30000;
 const MAX_FRAME_DEPTH = 4;
 
-/** Rect of `el` in top-level viewport coordinates (handles same-origin iframes). */
+/**
+ * Rect of `el` in top-level viewport coordinates (handles same-origin iframes).
+ * Returns a plain object with the same fields as a DOMRect (incl. right/bottom).
+ */
 export function topRect(el) {
   const r = el.getBoundingClientRect();
   let left = r.left;
@@ -35,7 +38,7 @@ export function topRect(el) {
   } catch {
     /* cross-origin ancestor: best effort */
   }
-  return { left, top, width: r.width, height: r.height };
+  return { left, top, width: r.width, height: r.height, right: left + r.width, bottom: top + r.height };
 }
 
 export function isDisplayed(el) {

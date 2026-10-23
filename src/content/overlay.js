@@ -11,7 +11,6 @@ export function getOverlay() {
   if (!host) {
     host = document.createElement('div');
     host.id = OVERLAY_HOST_ID;
-    host.setAttribute('aria-hidden', 'true');
     host.style.cssText = 'all:initial;position:fixed;inset:0;pointer-events:none;z-index:2147483647;';
     shadow = host.attachShadow({ mode: 'closed' });
     const style = document.createElement('style');

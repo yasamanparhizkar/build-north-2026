@@ -42,11 +42,12 @@ async function refresh() {
 }
 
 async function init() {
-  const s = await chrome.storage.local.get(['geminiApiKey', 'model', 'voiceMode', 'liveModel']);
+  const s = await chrome.storage.local.get(['geminiApiKey', 'model', 'voiceMode', 'liveModel', 'pointerStyle']);
   $('apiKey').value = s.geminiApiKey || '';
   $('model').value = s.model || '';
   $('voiceMode').value = s.voiceMode || 'clips';
   $('liveModel').value = s.liveModel || '';
+  $('pointerStyle').value = s.pointerStyle === 'driver' ? 'driver' : 'spotlight';
   const tab = await activeTab();
   $('meetHint').classList.toggle('hidden', !tab || isMeetUrl(tab.url || ''));
   refresh();
@@ -57,7 +58,8 @@ $('saveKey').addEventListener('click', async () => {
     geminiApiKey: $('apiKey').value.trim(),
     model: $('model').value.trim(),
     voiceMode: $('voiceMode').value,
-    liveModel: $('liveModel').value.trim()
+    liveModel: $('liveModel').value.trim(),
+    pointerStyle: $('pointerStyle').value
   });
   statusEl.textContent = '✅ Settings saved.';
 });
@@ -111,3 +113,7 @@ $('clearBtn').addEventListener('click', async () => {
 
 chrome.storage.onChanged.addListener((_changes, area) => { if (area === 'session') refresh(); });
 init();
+
+document.getElementById('openDemo').addEventListener('click', () => {
+  chrome.tabs.create({ url: chrome.runtime.getURL('src/demo/demo.html') });
+});

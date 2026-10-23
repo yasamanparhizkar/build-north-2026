@@ -43,3 +43,11 @@ export function setIndicator(listening) {
   indicator.append(text, stop);
   layer.appendChild(indicator);
 }
+
+/** Diagnostics for tests: Stop button rect (viewport px), or null if not shown. */
+export function indicatorStopRect() {
+  const btn = indicator?.isConnected ? indicator.querySelector('button') : null;
+  if (!btn) return null;
+  const r = btn.getBoundingClientRect();
+  return { left: r.left, top: r.top, width: r.width, height: r.height };
+}

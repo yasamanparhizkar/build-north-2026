@@ -24,3 +24,11 @@ test('every file referenced by the manifest exists', () => {
   for (const f of files) assert.ok(fs.existsSync(f), `missing ${f}`);
 });
 
+
+test('every web-accessible resource (incl. vendored Driver.js) exists', () => {
+  const m = manifest();
+  const exact = m.web_accessible_resources.flatMap((w) => w.resources).filter((r) => !r.includes('*'));
+  assert.ok(exact.includes('src/vendor/driver.js/driver.js.mjs'));
+  for (const f of exact) assert.ok(fs.existsSync(f), `missing ${f}`);
+  assert.ok(fs.existsSync('src/vendor/driver.js/LICENSE'), 'Driver.js MIT license must ship with the vendored copy');
+});
