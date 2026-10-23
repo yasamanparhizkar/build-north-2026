@@ -24,7 +24,7 @@
   ],
   "web_accessible_resources": [
     {
-      "resources": ["src/content/*.js", "src/shared/*.js"],
+      "resources": ["src/content/*.js", "src/content/spotlight/*.js", "src/shared/*.js", "src/vendor/driver.js/driver.js.mjs", "src/vendor/driver.js/driver.css"],
       "matches": ["http://*/*", "https://*/*"]
     }
   ]

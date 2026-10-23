@@ -10,7 +10,11 @@
   "scripts": {
     "test": "node --test \"test/*.test.js\"",
     "test:integration": "node --test --test-concurrency=1 \"test/integration/*.test.mjs\"",
-    "test:all": "npm test && npm run test:integration"
+    "test:all": "npm test && npm run test:integration",
+    "vendor": "node scripts/vendor-driver.mjs"
+  },
+  "dependencies": {
+    "driver.js": "^1.10.2"
   },
   "devDependencies": {
     "puppeteer": "^24.43.1"

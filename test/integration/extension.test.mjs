@@ -70,7 +70,9 @@ before(async () => {
   base = await serve();
   browser = await puppeteer.launch({
     headless: true,
-    args: [`--disable-extensions-except=${ROOT}`, `--load-extension=${ROOT}`, '--window-size=1280,900'],
+    pipe: true,
+    enableExtensions: [ROOT], // supported loader (the --load-extension flag is being phased out)
+    args: ['--window-size=1280,900'],
     defaultViewport: { width: 1280, height: 800 }
   });
   const target = await browser.waitForTarget((t) => t.type() === 'service_worker' && t.url().endsWith('/src/background/index.js'), { timeout: 15000 });

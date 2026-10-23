@@ -89,3 +89,10 @@ test('nearestTo picks the candidate closest to the original position', () => {
   const near = c(105);
   assert.equal(nearestTo({ left: 100, top: 0, width: 10, height: 10 }, [c(0), near, c(500)]), near);
 });
+
+test('escapeHtml neutralizes markup for HTML-rendering libraries', async () => {
+  const { escapeHtml } = await import('../src/content/describe.js');
+  assert.equal(escapeHtml('<img src=x onerror="alert(1)">'), '&lt;img src=x onerror=&quot;alert(1)&quot;&gt;');
+  assert.equal(escapeHtml("Tom & Jerry's"), 'Tom &amp; Jerry&#39;s');
+  assert.equal(escapeHtml(null), '');
+});

@@ -18,6 +18,11 @@ export function buildElementText(ariaOrTitle, inner, maxLength = 80) {
   return normalizeName(`${ariaOrTitle || ''} ${inner || ''}`, maxLength);
 }
 
+/** Escape text for libraries that render strings as HTML (e.g. Driver.js popovers). */
+export function escapeHtml(text) {
+  return String(text ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+}
+
 /** Two names refer to the same control (case/whitespace-insensitive). */
 export function namesMatch(a, b) {
   const n = (s) => normalizeName(s).toLowerCase();

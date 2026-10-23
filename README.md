@@ -71,14 +71,14 @@ npm run test:integration   # loads the real extension in Chrome for Testing, abo
 ### Expected output
 `npm test` ends with:
 ```
-# tests 92
-# pass 92
+# tests 103
+# pass 103
 # fail 0
 ```
 `npm run test:integration` ends with:
 ```
-# tests 28
-# pass 28
+# tests 60
+# pass 60
 # fail 0
 ```
 It also prints lines like:
@@ -96,7 +96,7 @@ It also prints lines like:
 | Suite | Covers |
 |---|---|
 | Unit (`test/*.test.js`) | Audio encoding/resampling, voice-activity detection and overlapping clips, prompt and schema, response validation (made-up ids, unsupported actions, malformed JSON), Gemini client (model fallback, 429, 5xx, timeout), matcher and synonyms, ambiguity handling, session state machine, stale-result rejection, dedupe, metrics, snapshot registry, URL filter, Live protocol |
-| Integration (`test/integration/`) | Injection, shadow DOM, iframes, privacy (field values never sent), snapshot validation, pointer tracking, **zero clicks**, re-injection, popup and "Forget API key", restricted pages, voice pipeline with mocked Gemini, real Wikipedia and example.com |
+| Integration (`test/integration/`) | Spotlight pixels (target lit, page dark, card/glow on top, scroll/resize, clear, no stacking, candidates, reduced motion, Stop clickable), injection, shadow DOM, iframes, privacy (field values never sent), snapshot validation, pointer tracking, **zero clicks**, re-injection, popup and "Forget API key", restricted pages, voice pipeline with mocked Gemini, real Wikipedia and example.com |
 | Manual (sections 3â€“4, [docs/TESTING.md](docs/TESTING.md)) | Real Gmail/Meet pages, real tab audio capture, real Gemini, latency |
 
 ---
@@ -171,6 +171,7 @@ If any step fails, see [Troubleshooting](#troubleshooting). For the full 15-step
 - **Add a voice synonym** (e.g. "bin" â†’ "trash"): edit `SYNONYMS` in `src/background/matcher.js` and add a case to `test/matcher.test.js`.
 - **Tune speed vs. accuracy:** edit the constants in `src/shared/constants.js` (see [Configuration](#configuration)).
 - **New message type:** add it to `src/shared/messages.js`. If a content script or the offscreen document sends it, update `CONTENT_ALLOWED` / `OFFSCREEN_ONLY`.
+- **Driver.js (third-party, MIT):** installed with npm and copied into `src/vendor/driver.js/` (Manifest V3 forbids loading code from the internet). After updating the package run `npm run vendor` and commit the copied files. Its CSS is added to the page only when Driver.js mode is used.
 - **No build step:** plain ES modules. Content scripts load through `loader.js` â†’ dynamic `import()`, which is why `src/content/*.js` and `src/shared/*.js` are listed as web-accessible.
 
 ### Before a pull request
@@ -283,6 +284,38 @@ docs/TESTING.md        full manual procedure for a real Meet call + results log
 
 Modules marked *pure* have no Chrome or DOM dependencies and are unit tested in Node.
 
+## Spotlight module
+
+`src/content/spotlight/` is an independent module. It has no Chrome-extension dependencies, so the demo page and the content script both use it.
+
+```js
+import { showSpotlight, updateSpotlight, hideSpotlight, destroySpotlight } from './spotlight/index.js';
+
+await showSpotlight(elementOrSelector, 'Click the Record button.', {
+  padding: 16, radius: 14, feather: 8, opacity: 0.82,   // look
+  scroll: true, timeoutMs: 20000, dismissOnActivate: true,
+  extraTargets: [], reacquire: (i) => findAgain(), onClose: (reason) => {}
+}); // -> { ok: true } or { ok: false, reason: 'missing' | 'hidden' | 'ambiguous' | 'invalid-selector' | ... }
+```
+
+| File | Responsibility |
+|---|---|
+| `tracker.js` | Follows targets every animation frame (page/container scroll, resize, transforms, fixed elements, same-origin iframes). Re-finds targets that a framework re-rendered (`reacquire`) and reports when they are lost |
+| `renderer.js` | One SVG in the closed Shadow DOM: 82% black dim with blurred (feathered), rounded openings and a soft warm-white glow. No `viewBox`, so SVG units equal CSS pixels |
+| `typography.js` | Floating white instruction text (no box, bubble or arrow), placed below/above/right/left, kept on screen and off the target. Discreet × close button. Numbered markers for candidates |
+| `geometry.js` | Pure placement math (unit tested) |
+| `index.js` | Public API, lifecycle, Escape, click-to-dismiss, timeout and cleanup |
+
+**Behaviour:** smooth-scrolls to the target first, then fades in over 300 ms. It ends after a real (`isTrusted`) click on the target, Escape, ×, or the timeout. It never clicks or moves focus. Every visual has `pointer-events: none` except the × button. With `prefers-reduced-motion` there are no fades or smooth scrolling.
+
+**Demo without AI:** popup ? **Open spotlight demo**, or open `chrome-extension://<id>/src/demo/demo.html`. It includes simple buttons, navigation links, a scroll container, fixed and transformed elements, a re-rendering (React-like) button, a same-origin iframe, edge targets, and hidden/missing targets.
+
+**Limitations:**
+- **Cross-origin iframes:** not supported. The content script runs only in the top frame, and Chrome won't let it measure inside other origins.
+- **Closed shadow roots and canvas UIs:** can't be targeted.
+- **Restricted pages:** browser pages (`chrome://`, Chrome Web Store, PDF viewer) can't be used at all.
+- **Top layer:** elements in the top layer (`<dialog>.showModal()`, fullscreen) render above the overlay.
+- **Driver.js mode:** keeps a hard-edged cutout, because Driver.js draws its own overlay. The soft spotlight is the default.
 ## Configuration
 
 **Popup â†’ Settings**
@@ -293,6 +326,7 @@ Modules marked *pure* have no Chrome or DOM dependencies and are unit tested in 
 | Model | `gemini-flash-latest` | Google's alias for the current Flash model. If the model is not found, an available Flash model is chosen automatically and saved here |
 | Voice mode | Audio clips | *Gemini Live streaming* is experimental |
 | Live model | see `constants.js` | Only used in Live mode |
+| Pointer style | Spotlight | Built-in spotlight (default) or *Driver.js highlight*. Driver.js is used for a single target only; multiple candidates always use the spotlight. In Driver.js mode, clicking the dark area closes the highlight |
 
 **Tuning constants** in [src/shared/constants.js](src/shared/constants.js):
 
