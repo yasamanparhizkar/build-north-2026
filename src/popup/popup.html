@@ -16,6 +16,7 @@
   <input type="text" id="manualCmd" placeholder="e.g. Click the Compose button" maxlength="300" />
   <button id="sendCmd">Highlight Element</button>
   <button id="clearBtn" class="clear">Clear Pointer</button>
+  <button id="openDemo" class="clear">Open spotlight demo (no AI needed)</button>
   <div id="status" role="status">Ready.</div>
 
   <details>
@@ -31,6 +32,11 @@
     </select>
     <label for="liveModel">Live model (experimental mode only):</label>
     <input type="text" id="liveModel" placeholder="gemini-2.5-flash-native-audio-preview-09-2025" />
+    <label for="pointerStyle">Pointer style:</label>
+    <select id="pointerStyle">
+      <option value="spotlight">Spotlight (built-in, recommended)</option>
+      <option value="driver">Driver.js highlight</option>
+    </select>
     <button id="saveKey">Save Settings</button>
     <button id="forgetKey" class="clear">Forget API key</button>
     <p class="note">The key is stored only in this Chrome profile's extension storage (unencrypted, never in the repo). Use your own key, click "Forget API key" on shared computers, and never share a build containing one.</p>

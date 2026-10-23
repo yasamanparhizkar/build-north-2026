@@ -11,8 +11,8 @@ import { findTargetTab, notifyTab, sendToTab } from './tabs.js';
 import { stopListening } from './capture.js';
 
 async function getSettings() {
-  const s = await chrome.storage.local.get(['geminiApiKey', 'model']);
-  return { apiKey: s.geminiApiKey || '', model: s.model || '' };
+  const s = await chrome.storage.local.get(['geminiApiKey', 'model', 'pointerStyle']);
+  return { apiKey: s.geminiApiKey || '', model: s.model || '', pointerStyle: s.pointerStyle === 'driver' ? 'driver' : 'spotlight' };
 }
 
 export function updateMetrics(fn) {
@@ -69,7 +69,10 @@ async function applyDecision({ decision, job, tabId, snapshot, timings = {}, typ
   const t0 = Date.now();
   const ambiguous = decision.kind === 'candidates';
   const label = ambiguous ? 'Is it one of these?' : decision.label || `Click ${targets[0].name}`;
-  const res = await sendToTab(tabId, { action: MSG.HIGHLIGHT, snapshotId: snapshot.snapshotId, targets, label, ambiguous });
+  const { pointerStyle } = await getSettings();
+  const res = await sendToTab(tabId, {
+    action: MSG.HIGHLIGHT, snapshotId: snapshot.snapshotId, targets, label, ambiguous, renderer: pointerStyle
+  });
   const matchMs = Date.now() - t0 + (snapshot.scanMs || 0);
 
   if (!res?.ok) {
