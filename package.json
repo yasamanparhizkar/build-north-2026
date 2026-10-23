@@ -1,6 +1,6 @@
 {
   "name": "senior-helper-extension",
-  "version": "1.2.0",
+  "version": "1.3.0",
   "private": true,
   "description": "Chrome extension that points at the right button for seniors, guided by a family member's voice on Google Meet.",
   "type": "module",
@@ -11,12 +11,14 @@
     "test": "node --test \"test/*.test.js\"",
     "test:integration": "node --test --test-concurrency=1 \"test/integration/*.test.mjs\"",
     "test:all": "npm test && npm run test:integration",
-    "vendor": "node scripts/vendor-driver.mjs"
+    "vendor": "node scripts/vendor-driver.mjs",
+    "vendor:ort": "node scripts/vendor-ort.mjs"
   },
   "dependencies": {
     "driver.js": "^1.10.2"
   },
   "devDependencies": {
+    "onnxruntime-web": "1.30.0",
     "puppeteer": "^25.16.0"
   }
 }

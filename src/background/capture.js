@@ -1,6 +1,7 @@
 // Starts/stops Meet tab audio capture through the offscreen document
 // (Chrome 116+ pattern: stream id from the service worker, consumed offscreen).
 import { MSG, TARGET_OFFSCREEN } from '../shared/messages.js';
+import { DEFAULT_VOICE_MODE, VOICE_MODES, WAKE_PHRASE } from '../shared/constants.js';
 import { isScriptableUrl } from '../shared/urls.js';
 import { EMPTY_METRICS } from './metrics.js';
 import { STATUS, isListeningStatus } from './sessionState.js';
@@ -65,6 +66,17 @@ export function updateActionBadge(status) {
   chrome.action.setBadgeTextColor({ color: textColor }).catch(() => {});
 }
 
+/** Normalize the saved setting; anything unknown (e.g. the removed 'live' mode) means the wake word. */
+export function voiceModeFrom(saved) {
+  return Object.values(VOICE_MODES).includes(saved) ? saved : DEFAULT_VOICE_MODE;
+}
+
+/** INDICATOR message for content scripts; the pill says how to call the helper. */
+export function indicatorMessage(listening, voiceMode) {
+  const label = voiceMode === VOICE_MODES.WAKE ? `Say "${WAKE_PHRASE}"` : 'Listening';
+  return { action: MSG.INDICATOR, listening, label };
+}
+
 async function broadcastIndicator(listening) {
   const tabs = await chrome.tabs.query({});
   await Promise.all(
@@ -75,21 +87,22 @@ async function broadcastIndicator(listening) {
 /** Must follow a user gesture (popup click): the popup grants activeTab for this tab. */
 export async function startListening(tabId) {
   if (!tabId) throw new Error('No tab to listen to');
-  const settings = await chrome.storage.local.get(['geminiApiKey']);
+  const settings = await chrome.storage.local.get(['geminiApiKey', 'voiceMode']);
   if (!settings.geminiApiKey) throw new Error('Voice needs a Gemini API key. Save one first.');
 
   const current = await getSession();
   if (isListeningStatus(current.status) && current.captureTabId === tabId) return current;
   if (current.status !== STATUS.IDLE) await stopListening({ silent: true });
 
-  const session = await resetSession({ status: STATUS.STARTING, captureTabId: tabId, detail: 'Starting capture…' });
+  const mode = voiceModeFrom(settings.voiceMode);
+  const session = await resetSession({ status: STATUS.STARTING, captureTabId: tabId, voiceMode: mode, detail: 'Starting capture…' });
   await chrome.storage.session.set({ metrics: { ...EMPTY_METRICS, startedAt: Date.now() } });
   updateActionBadge(STATUS.STARTING);
 
   try {
     const streamId = await chrome.tabCapture.getMediaStreamId({ targetTabId: tabId });
     await ensureOffscreen();
-    const ack = await sendToOffscreen({ action: MSG.START_CAPTURE, streamId, generation: session.generation });
+    const ack = await sendToOffscreen({ action: MSG.START_CAPTURE, streamId, generation: session.generation, mode });
     if (!ack?.ok) throw new Error(ack?.error || 'Audio capture did not start');
   } catch (e) {
     await closeOffscreen();
@@ -101,7 +114,7 @@ export async function startListening(tabId) {
 
   const next = await updateSession({ status: STATUS.LISTENING, detail: '' });
   updateActionBadge(STATUS.LISTENING);
-  notifyTab(tabId, { action: MSG.INDICATOR, listening: true });
+  notifyTab(tabId, indicatorMessage(true, mode));
   return next;
 }
 
@@ -140,7 +153,7 @@ export async function trackActiveTab(tabId) {
   const s = await getSession();
   if (!isListeningStatus(s.status)) return;
   await updateSession({ targetTabId: tabId });
-  notifyTab(tabId, { action: MSG.INDICATOR, listening: true });
+  notifyTab(tabId, indicatorMessage(true, s.voiceMode));
 }
 
 /** After a service-worker restart, reconcile stored state with reality. */

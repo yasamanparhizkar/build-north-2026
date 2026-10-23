@@ -72,7 +72,12 @@ before(async () => {
     headless: true,
     pipe: true,
     enableExtensions: [ROOT], // supported loader (the --load-extension flag is being phased out)
-    args: ['--window-size=1280,900'],
+    args: [
+      // Chrome refuses to start as root (CI containers) unless sandboxing is off.
+      ...(process.getuid?.() === 0 ? ['--no-sandbox'] : []),
+      '--autoplay-policy=no-user-gesture-required', // the wake-word test plays audio
+      '--window-size=1280,900'
+    ],
     defaultViewport: { width: 1280, height: 800 }
   });
   const target = await browser.waitForTarget((t) => t.type() === 'service_worker' && t.url().endsWith('/src/background/index.js'), { timeout: 15000 });
@@ -234,6 +239,99 @@ test('re-injection does not duplicate listeners or overlays', async () => {
   assert.equal(await page.evaluate(() => document.querySelectorAll('#senior-helper-root').length), 1);
 });
 
+test('wake word: the on-device detector loads under the extension CSP and hears "Hey Jarvis"', async () => {
+  const id = new URL(worker.url()).host;
+  const page = await browser.newPage();
+  const errors = [];
+  page.on('pageerror', (e) => errors.push(e.message));
+  // Same origin and CSP as the real offscreen document.
+  await page.goto(`chrome-extension://${id}/src/offscreen/offscreen.html`);
+  const result = await page.evaluate(async () => {
+    const { loadWakeDetector } = await import('/src/offscreen/wakeEngine.js');
+    const read = async (name) => {
+      const buf = await (await fetch(`/test/fixtures/audio/${name}`)).arrayBuffer();
+      const pcm = new Int16Array(buf.slice(44));
+      const audio = new Float32Array(pcm.length + 32000);
+      for (let i = 0; i < pcm.length; i++) audio[16000 + i] = pcm[i] / 32768;
+      return audio;
+    };
+    const run = async (name) => {
+      let hits = 0;
+      const det = await loadWakeDetector({ onWake: () => { hits++; } });
+      const audio = await read(name);
+      const t0 = performance.now();
+      for (let i = 0; i < audio.length; i += 640) {
+        det.push(audio.subarray(i, i + 640));
+        while (det.running) await new Promise((r) => setTimeout(r, 0));
+      }
+      return { hits, max: det.maxScore, ms: Math.round(performance.now() - t0), seconds: audio.length / 16000 };
+    };
+    return { pos: await run('pos_2.wav'), neg: await run('neg_1.wav') };
+  });
+  await page.close();
+  console.log(`#   wake word in Chrome: pos max ${result.pos.max.toFixed(3)} (${result.pos.ms} ms for ${result.pos.seconds.toFixed(1)} s audio), neg max ${result.neg.max.toFixed(3)}`);
+  assert.deepEqual(errors, []);
+  assert.equal(result.pos.hits, 1, 'fires once on "Hey Jarvis, click the compose button."');
+  assert.equal(result.neg.hits, 0, 'stays quiet on ordinary conversation');
+  assert.ok(result.pos.ms < result.pos.seconds * 1000, 'runs faster than real time');
+});
+
+test('wake word end to end: offscreen capture sends nothing for chat, one clip after "Hey Jarvis"', async () => {
+  const id = new URL(worker.url()).host;
+  const page = await browser.newPage();
+  const errors = [];
+  page.on('pageerror', (e) => errors.push(e.message));
+  // A second copy of the offscreen document; tab capture is replaced by a stream that
+  // plays fixture audio (chat, then a wake-word request) in real time.
+  await page.goto(`chrome-extension://${id}/src/offscreen/offscreen.html`);
+  await page.evaluate(async () => {
+    window.__sent = [];
+    const realSend = chrome.runtime.sendMessage.bind(chrome.runtime);
+    chrome.runtime.sendMessage = (msg) => { window.__sent.push(msg); return Promise.resolve(); };
+    window.__realSend = realSend;
+    const ctx = new AudioContext({ sampleRate: 48000 });
+    await ctx.resume();
+    const decode = async (name) => ctx.decodeAudioData(await (await fetch(`/test/fixtures/audio/${name}`)).arrayBuffer());
+    const parts = [await decode('neg_1.wav'), await decode('neg_3.wav'), await decode('pos_2.wav')];
+    const gap = 0.8;
+    const total = parts.reduce((n, b) => n + b.duration + gap, 0) + 2;
+    const out = ctx.createBuffer(1, Math.ceil(total * ctx.sampleRate), ctx.sampleRate);
+    let at = 0.5;
+    for (const b of parts) { out.getChannelData(0).set(b.getChannelData(0), Math.round(at * ctx.sampleRate)); at += b.duration + gap; }
+    const src = ctx.createBufferSource();
+    src.buffer = out;
+    const dest = ctx.createMediaStreamDestination();
+    src.connect(dest);
+    navigator.mediaDevices.getUserMedia = async () => dest.stream;
+    window.__play = () => src.start();
+    window.__totalMs = total * 1000;
+  });
+  // START_CAPTURE comes from the service worker, as in the real extension.
+  const ack = await worker.evaluate(() => chrome.runtime.sendMessage({
+    target: 'offscreen', action: 'START_CAPTURE', streamId: 'fake', generation: 9999, mode: 'wake'
+  }));
+  assert.equal(ack?.ok, true, JSON.stringify(ack));
+  const totalMs = await page.evaluate(() => { window.__play(); return window.__totalMs; });
+  await new Promise((r) => setTimeout(r, totalMs + 1500));
+  const sent = await page.evaluate(() => window.__sent.map((m) => ({
+    action: m.action, state: m.state, reason: m.reason, wake: m.wake, durationMs: m.durationMs, bytes: m.audioBase64?.length || 0
+  })));
+  await worker.evaluate(() => chrome.runtime.sendMessage({ target: 'offscreen', action: 'STOP_CAPTURE' }));
+  await page.close();
+
+  console.log(`#   offscreen messages: ${JSON.stringify(sent)}`);
+  assert.deepEqual(errors, []);
+  const clips = sent.filter((m) => m.action === 'AUDIO_CLIP');
+  assert.equal(clips.length, 1, 'exactly one clip: the request after the wake phrase');
+  assert.equal(clips[0].wake, true);
+  assert.equal(clips[0].reason, 'wake-command');
+  assert.ok(clips[0].durationMs >= 2500 && clips[0].durationMs <= 6500, `clip ${clips[0].durationMs} ms`);
+  const wakeEvents = sent.filter((m) => m.action === 'WAKE_EVENT').map((m) => m.state);
+  assert.deepEqual(wakeEvents, ['open', 'closed']);
+  // Nothing at all was sent while the two chat sentences played.
+  assert.equal(sent.findIndex((m) => m.action === 'WAKE_EVENT'), 0);
+});
+
 test('popup renders and reports idle state', async () => {
   const id = new URL(worker.url()).host;
   const popup = await browser.newPage();
@@ -319,6 +417,16 @@ test('voice pipeline: command clip -> pointer; overlapping repeat is deduplicate
   assert.match(replay.status, /already-handled/);
   const old = await clip(g - 1, 2);
   assert.match(old.status, /old-session/);
+});
+
+test('voice pipeline: a repeated wake-word request is pointed at again (not deduplicated)', async () => {
+  await installFakeGemini({ transcript: 'Hey Jarvis, click the Compose button', isCommand: true, target: 'Compose' });
+  const g = await fakeListening(tabId);
+  const wakeClip = (seq) => sw((gen, sq) => globalThis.__seniorHelperTest.processAudioClip({
+    generation: gen, seq: sq, audioBase64: 'UklGRg==', mimeType: 'audio/wav', capturedAt: Date.now(), durationMs: 3000, wake: true
+  }), g, seq);
+  assert.match((await wakeClip(0)).status, /✅ Pointing to: Click Compose/);
+  assert.match((await wakeClip(1)).status, /✅ Pointing to: Click Compose/);
 });
 
 test('voice pipeline: ordinary conversation draws nothing', async () => {

@@ -61,7 +61,8 @@ async function applyDecision({ decision, job, tabId, snapshot, timings = {}, typ
   const targets = decision.ids.map((id) => byId.get(id)).filter(Boolean).map((e) => ({ id: e.id, name: e.name, role: e.role }));
   const key = commandKey(decision.target || decision.transcript, targets[0]?.name);
 
-  if (!typed) {
+  // Overlapping always-on clips can repeat a command; a wake-word request is always deliberate.
+  if (!typed && !job?.wake) {
     const s = await getSession();
     if (isDuplicateCommand(s.recentCommands, key, now)) return { status: '🔁 Duplicate command ignored' };
   }
@@ -126,7 +127,7 @@ export async function processAudioClip(clip) {
     tabId = await findTargetTab(session.captureTabId);
     const snapshot = await getSnapshot(tabId);
     const { result, latencyMs } = await askGemini({
-      input: { audioBase64: clip.audioBase64, mimeType: clip.mimeType, durationMs: clip.durationMs },
+      input: { audioBase64: clip.audioBase64, mimeType: clip.mimeType, durationMs: clip.durationMs, wake: clip.wake === true },
       elements: snapshot.elements,
       previousTranscript: session.lastTranscript
     });
