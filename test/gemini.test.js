@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { GeminiError, callGemini, pickFlashModel, thinkingConfigFor } from '../src/background/gemini.js';
+import { GeminiError, callGemini, pickFlashModel, resetThinkingCache, thinkingConfigFor, thinkingLadder } from '../src/background/gemini.js';
 
 const answer = (obj) => ({
   ok: true,
@@ -9,6 +9,7 @@ const answer = (obj) => ({
 });
 const failure = (status, message, extra = {}) => ({ ok: false, status, json: async () => ({ error: { message, ...extra } }) });
 
+const okAnswer = (obj) => ({ ok: true, status: 200, json: async () => ({ candidates: [{ content: { parts: [{ text: JSON.stringify(obj) }] } }] }) });
 const elements = [{ id: 'el-1', role: 'button', name: 'Compose', region: 'top-left' }];
 const good = { transcript: 'click compose', isCommand: true, intent: 'locate_element', target: 'Compose', region: 'none', matchedElementId: 'el-1', confidence: 0.9, label: 'Click Compose' };
 
@@ -62,16 +63,45 @@ test('retired model (404) -> picks an available Flash model via ListModels and r
   assert.equal(calls.length, 3);
 });
 
-test('unknown thinking parameter -> retries without thinkingConfig', async () => {
-  const bodies = [];
+test('thinking ladder: a 2.5-backed alias walks down to budget 0, then remembers it (one failed request per model, not per command)', async () => {
+  resetThinkingCache();
+  const sent = [];
   const fetchImpl = async (_url, init) => {
-    const body = JSON.parse(init.body);
-    bodies.push(body);
-    return body.generationConfig.thinkingConfig ? failure(400, 'Unknown field thinkingLevel') : answer(good);
+    const tc = JSON.parse(init.body).generationConfig.thinkingConfig;
+    sent.push(tc);
+    if (tc?.thinkingLevel) return failure(400, 'Unknown name "thinkingLevel": Cannot find field.');
+    return { ok: true, status: 200, json: async () => ({ modelVersion: 'gemini-2.5-flash', usageMetadata: { thoughtsTokenCount: 0 }, candidates: [{ content: { parts: [{ text: JSON.stringify(good) }] } }] }) };
   };
+  const first = await callGemini({ apiKey: 'k', model: 'gemini-flash-latest', input: { text: 'x' }, elements }, { fetchImpl });
+  assert.deepEqual(sent, [{ thinkingLevel: 'minimal' }, { thinkingLevel: 'low' }, { thinkingBudget: 0 }]);
+  assert.deepEqual(first.thinking, { thinkingBudget: 0 });
+  assert.equal(first.modelVersion, 'gemini-2.5-flash');
+
+  sent.length = 0;
   await callGemini({ apiKey: 'k', model: 'gemini-flash-latest', input: { text: 'x' }, elements }, { fetchImpl });
-  assert.equal(bodies.length, 2);
-  assert.equal(bodies[1].generationConfig.thinkingConfig, undefined);
+  assert.deepEqual(sent, [{ thinkingBudget: 0 }], 'second command must go straight to the working setting');
+});
+
+test('thinking ladder: a model that accepts the fastest setting is used from the start', async () => {
+  resetThinkingCache();
+  const sent = [];
+  const fetchImpl = async (_url, init) => { sent.push(JSON.parse(init.body).generationConfig.thinkingConfig); return okAnswer(good); };
+  const r = await callGemini({ apiKey: 'k', model: 'gemini-3.5-flash', input: { text: 'x' }, elements }, { fetchImpl });
+  assert.deepEqual(sent, [{ thinkingLevel: 'minimal' }]);
+  assert.deepEqual(r.thinking, { thinkingLevel: 'minimal' });
+});
+
+test('thinking ladder: a model with no thinking support ends with no thinkingConfig', async () => {
+  resetThinkingCache();
+  const sent = [];
+  const fetchImpl = async (_url, init) => {
+    const tc = JSON.parse(init.body).generationConfig.thinkingConfig;
+    sent.push(tc);
+    return tc ? failure(400, 'thinking is not supported by this model') : okAnswer(good);
+  };
+  await callGemini({ apiKey: 'k', model: 'gemini-9-future-flash', input: { text: 'x' }, elements }, { fetchImpl });
+  assert.equal(sent.at(-1), undefined);
+  assert.equal(sent.length, 4, 'tries each of the 3 settings once, then none');
 });
 
 test('rate limit surfaces retry delay', async () => {
@@ -120,8 +150,9 @@ test('pickFlashModel prefers newest non-lite stable flash', () => {
   assert.equal(pickFlashModel([]), null);
 });
 
-test('thinkingConfigFor picks the right knob per generation', () => {
+test('thinkingConfigFor / thinkingLadder pick the right knob per generation', () => {
   assert.deepEqual(thinkingConfigFor('gemini-2.5-flash'), { thinkingBudget: 0 });
-  assert.deepEqual(thinkingConfigFor('gemini-3.5-flash'), { thinkingLevel: 'low' });
+  assert.deepEqual(thinkingConfigFor('gemini-3.5-flash'), { thinkingLevel: 'minimal' });
   assert.equal(thinkingConfigFor('gemini-2.0-flash'), null);
+  assert.deepEqual(thinkingLadder('gemini-flash-latest').at(-1), null, 'always ends with a safe fallback');
 });

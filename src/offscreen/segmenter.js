@@ -58,7 +58,8 @@ export class ClipSegmenter {
     this.bufferedMs = 0;
     this.newSpeechMs = 0; // speech since the last emitted clip
     this.spanMs = 0; // time since new speech started (for hop emission)
-    this.silenceMs = 0; // silence since the last speech frame
+    this.silenceMs = 0; // silence since the last speech frame (after the VAD hangover)
+    this.quietMs = 0; // time since the last genuinely loud frame (what end-of-speech is measured from)
   }
 
   push(samples, now = Date.now()) {
@@ -79,10 +80,13 @@ export class ClipSegmenter {
     } else if (this.newSpeechMs > 0) {
       this.silenceMs += ms;
     }
+    // End of speech is measured from the last loud frame; the VAD hangover must not add to the wait.
+    if (this.vad.lastLoud) this.quietMs = 0;
+    else this.quietMs += ms;
     if (this.newSpeechMs > 0) this.spanMs += ms;
 
     const enoughSpeech = this.newSpeechMs >= this.minSpeechMs;
-    if (enoughSpeech && this.silenceMs >= this.endOfSpeechMs) {
+    if (enoughSpeech && this.quietMs >= this.endOfSpeechMs) {
       this.emit('end-of-speech', now);
     } else if (enoughSpeech && this.spanMs >= this.hopMs) {
       this.emit('hop', now);
@@ -117,11 +121,18 @@ export class ClipSegmenter {
       durationMs: Math.round((total / this.sampleRate) * 1000),
       speechMs: Math.round(chosen.filter((f) => f.speech).reduce((n, f) => n + f.ms, 0)),
       reason,
-      speechEndedAt: Math.round(now - this.silenceMs)
+      speechEndedAt: Math.round(now - this.quietMs)
     };
     this.newSpeechMs = 0;
     this.spanMs = 0;
     this.silenceMs = 0;
+    this.quietMs = 0;
+    if (reason === 'end-of-speech') {
+      // The command is finished: forget its audio so the NEXT clip holds only the next command.
+      // (After a 'hop' the audio is kept on purpose: the sentence continues and needs the overlap.)
+      this.frames = [];
+      this.bufferedMs = 0;
+    }
     this.onClip(clip);
   }
 }

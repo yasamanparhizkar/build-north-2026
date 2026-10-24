@@ -19,6 +19,8 @@ or a typed sentence, plus a list of clickable elements currently on the senior's
 
 Rules:
 - Transcribe what was said (empty string for silence, music or noise).
+- If the audio holds more than one instruction, act only on the LAST one.
+- The audio may start in the middle of a sentence whose first half is quoted as "earlier"; join them when that makes sense.
 - isCommand=true only if someone tells the senior where to click, look, or which control to find on the screen.
   Ordinary conversation is NOT a command.
 - intent: "locate_element" for such commands, otherwise "none". We never click; we only point.
@@ -59,7 +61,7 @@ export function buildUserPrompt(input, elements, previousTranscript = '') {
     ? 'The attached audio is the latest few seconds of the call.'
     : `Typed command: ${JSON.stringify(String(input.text || '').slice(0, 300))}`;
   const context = previousTranscript
-    ? `Earlier in the call (context only, already handled): ${JSON.stringify(previousTranscript.slice(-200))}`
+    ? `Earlier (the speaker may be finishing this sentence; do not act on it by itself): ${JSON.stringify(previousTranscript.slice(-200))}`
     : '';
   return [
     said,

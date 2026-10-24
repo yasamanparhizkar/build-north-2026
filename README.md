@@ -71,14 +71,14 @@ npm run test:integration   # loads the real extension in Chrome for Testing, abo
 ### Expected output
 `npm test` ends with:
 ```
-# tests 103
-# pass 103
+# tests 97
+# pass 97
 # fail 0
 ```
 `npm run test:integration` ends with:
 ```
-# tests 60
-# pass 60
+# tests 49
+# pass 49
 # fail 0
 ```
 It also prints lines like:
@@ -227,7 +227,7 @@ flowchart TD
 
 **Flow for one spoken command:**
 1. The offscreen document plays the Meet audio back (capture mutes the tab otherwise) and runs an energy-based voice-activity detector with an adaptive noise floor.
-2. A clip is sent **~0.7 s after speech ends**, or every **4 s** during long speech. Each clip holds up to **6 s** of audio, so consecutive clips overlap by 2 s and a sentence crossing a boundary is heard whole. Silence is never sent.
+2. A clip is sent **~0.6 s after the last loud sound** (measured: 0.56–0.63 s), or every **4 s** during long speech. Each clip holds up to **6 s** of audio, so consecutive clips overlap by 2 s and a sentence crossing a boundary is heard whole. Silence is never sent.
 3. The service worker drops stale work (old session, already-handled sequence, older than 15 s, rate-limited), asks the content script for a fresh **snapshot**, and sends the clip plus a compact element table (`[id, role, name, region, visible]`) to Gemini with a strict response schema.
 4. The answer is validated: unknown ids and unsupported intents are rejected, and confidence is clamped. Then it is combined with the deterministic matcher:
    - A confident validated pick points directly.
@@ -283,6 +283,32 @@ docs/TESTING.md        full manual procedure for a real Meet call + results log
 
 Modules marked *pure* have no Chrome or DOM dependencies and are unit tested in Node.
 
+## Measure voice speed
+
+What happens after someone finishes a sentence, and how long each part takes:
+
+| Step | Time | How it is known |
+|---|---|---|
+| Wait to be sure the sentence ended (`END_OF_SPEECH_MS`) | ~0.55–0.63 s | **Measured** in real Chrome with synthesized speech (`test/integration/voice-capture.test.mjs`). It was 1.0–1.2 s before the fix |
+| Upload the clip + read the page | tens of ms | Estimated |
+| Gemini understands the audio and picks the element | **depends on your key and model** | Not measured here. Run the script below |
+
+```
+# Windows PowerShell
+$env:GEMINI_API_KEY="your-key"; npm run voice:latency
+
+# macOS / Linux
+GEMINI_API_KEY=your-key npm run voice:latency
+
+# compare models
+npm run voice:latency -- --models gemini-flash-latest,gemini-3.1-flash-lite --runs 5
+
+# check the script itself without a key
+npm run voice:latency -- --dry-run
+```
+
+The script sends real speech (`test/fixtures/speech-*.wav`) plus a Gmail-sized element list through the extension's own Gemini code and prints median and best times, the real model behind the `-latest` alias, and whether it picked the right button. The key is only read from the environment. Use the fastest model that picks the right button, and enter it under **Settings → Model**.
+
 ## Spotlight module
 
 `src/content/spotlight/` is an independent module. It has no Chrome-extension dependencies.
@@ -327,7 +353,7 @@ await showSpotlight(elementOrSelector, 'Click the Record button.', {
 
 | Constant | Default | Effect |
 |---|---|---|
-| `END_OF_SPEECH_MS` | 700 | Silence that ends an utterance. Lower means faster but may cut sentences |
+| `END_OF_SPEECH_MS` | 550 | Quiet time after the **last loud sound** that ends a command, then the clip is sent. Lower is faster but may cut a sentence at a long pause |
 | `CLIP_WINDOW_MS` / `CLIP_HOP_MS` | 6000 / 4000 | Clip length and interval during long speech (2 s overlap) |
 | `MIN_SPEECH_MS` | 250 | Shorter sounds (coughs, clicks) are not sent |
 | `MAX_CLIP_AGE_MS` | 15000 | Older clips are dropped as stale |
@@ -352,6 +378,7 @@ await showSpotlight(elementOrSelector, 'Click the Record button.', {
 |---|---|
 | **Meet audio not captured** | Press **Start Listening** from the popup *while the Meet tab is active* (Chrome requires the extension to be invoked on that tab). Look at the popup state line. Check the service worker console. A tab already captured by another extension cannot be captured twice. |
 | **Meet audio becomes silent** | The offscreen document plays the audio back. Check *Inspect views: offscreen.html* → Console. Press Stop and Start again. If the Meet tab was reloaded, capture ends (state: *interrupted*). |
+| **Voice is slow or ignores the 2nd command** | Run `npm run voice:latency` (see *Measure voice speed*). Diagnostics shows *Median Gemini* and *Speech → pointer*. Each command should be a separate sentence with a short pause before it; two commands in one breath are read as one. |
 | **Gemini errors** | The popup state shows the message. `API key rejected` means re-paste the key. `Rate limit` means the helper pauses automatically. `Model not found` means it auto-switches to an available Flash model (saved in Settings), or you can enter a model manually. |
 | **No matching element** | Use the popup test box to check the page has a control with that label. Icon-only buttons need an `aria-label`/`title`. Cross-origin iframes and canvas-drawn controls are not supported. |
 | **Not running on a page** | Content scripts don't run on `chrome://`, the Chrome Web Store, the PDF viewer or `file://` pages. Tabs opened before installing are injected automatically on first use. |
@@ -363,7 +390,7 @@ await showSpotlight(elementOrSelector, 'Click the Record button.', {
 
 ## Known limitations
 
-- Voice has not yet been validated in a real Meet call (section 4). Speech-to-pointer latency is expected to be roughly 0.7 s (end of speech) + upload + Gemini time; measure it with Diagnostics.
+- Voice has not yet been validated in a real Meet call (section 4). Speech-to-pointer latency is about 0.6 s (end of speech) + upload + Gemini time; measure Gemini on your machine with `npm run voice:latency` and live with popup → Diagnostics.
 - Captured audio is the whole Meet tab playback, including the senior's own voice if Meet echoes it, and any shared media. Gemini decides what is an instruction.
 - Cross-origin iframes, closed shadow roots, canvas UIs and native browser dialogs are not scanned.
 - Elements in the browser's top layer (`<dialog>.showModal()`, fullscreen) can cover the overlay.

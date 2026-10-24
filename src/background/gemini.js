@@ -26,11 +26,27 @@ export function pickFlashModel(models) {
   return usable[0] ? usable[0].name.replace(/^models\//, '') : null;
 }
 
-/** Thinking adds latency; turn it down. Gemini 2.5 uses a token budget, 3.x+ uses levels. */
+/**
+ * Thinking adds seconds of latency to a task that needs none, so it is switched
+ * off / minimized. The parameter differs by model generation and the `-latest`
+ * alias can point at either, so this is a ladder from fastest to safest; the rung
+ * that the model accepts is remembered, so a rejected parameter costs one failed
+ * request per model, not one per spoken command.
+ */
+export function thinkingLadder(model) {
+  if (/gemini-2\.5/.test(model)) return [{ thinkingBudget: 0 }, null];
+  if (/gemini-(1|2\.0)/.test(model)) return [null];
+  return [{ thinkingLevel: 'minimal' }, { thinkingLevel: 'low' }, { thinkingBudget: 0 }, null];
+}
+
+/** First (fastest) rung. Kept for callers that want a single config. */
 export function thinkingConfigFor(model) {
-  if (/gemini-2\.5/.test(model)) return { thinkingBudget: 0 };
-  if (/gemini-[3-9]/.test(model) || /latest/.test(model)) return { thinkingLevel: 'low' };
-  return null;
+  return thinkingLadder(model)[0];
+}
+
+const thinkingRung = new Map(); // model -> index into thinkingLadder(model) that works
+export function resetThinkingCache() {
+  thinkingRung.clear();
 }
 
 function parseRetryAfter(data) {
@@ -98,7 +114,6 @@ export async function callGemini(req, opts = {}) {
   if (!key) throw new GeminiError('API key is empty', { kind: 'auth' });
 
   let model = (req.model || '').trim() || DEFAULT_MODEL;
-  let useThinking = true;
   let retriedServer = false;
   let resolvedModel = false;
   const started = Date.now();
@@ -108,14 +123,16 @@ export async function callGemini(req, opts = {}) {
     parts.push({ inlineData: { mimeType: req.input.mimeType || 'audio/wav', data: req.input.audioBase64 } });
   }
 
-  for (let attempt = 0; attempt < 4; attempt++) {
+  for (let attempt = 0; attempt < 8; attempt++) {
     const generationConfig = {
       temperature: 0.1,
       maxOutputTokens: 400,
       responseMimeType: 'application/json',
       responseSchema: RESPONSE_SCHEMA
     };
-    const thinking = useThinking ? thinkingConfigFor(model) : null;
+    const ladder = thinkingLadder(model);
+    const rung = Math.min(thinkingRung.get(model) ?? 0, ladder.length - 1);
+    const thinking = ladder[rung];
     if (thinking) generationConfig.thinkingConfig = thinking;
 
     const remaining = timeoutMs - (Date.now() - started);
@@ -131,14 +148,22 @@ export async function callGemini(req, opts = {}) {
     if (res.ok) {
       const text = (data.candidates?.[0]?.content?.parts || []).map((p) => p.text || '').join('');
       if (!text) throw new GeminiError(`Empty response (${data.candidates?.[0]?.finishReason || data.promptFeedback?.blockReason || 'unknown'})`);
+      thinkingRung.set(model, rung); // remember what worked
       const ids = new Set(req.elements.map((e) => e.id));
-      return { result: validateModelResult(parseModelJson(text), ids), model, latencyMs: Date.now() - started };
+      return {
+        result: validateModelResult(parseModelJson(text), ids),
+        model,
+        modelVersion: data.modelVersion || null, // the real model behind an alias
+        thinking,
+        thoughtTokens: data.usageMetadata?.thoughtsTokenCount ?? 0,
+        latencyMs: Date.now() - started
+      };
     }
 
     const err = toError(res, data, model);
-    // 1) Unknown thinking parameter for this model -> retry without it.
-    if (res.status === 400 && useThinking && /thinking/i.test(data?.error?.message || '')) {
-      useThinking = false;
+    // 1) This model rejects the thinking setting -> try the next, safer rung (remembered).
+    if (res.status === 400 && rung < ladder.length - 1 && /thinking/i.test(data?.error?.message || '')) {
+      thinkingRung.set(model, rung + 1);
       continue;
     }
     // 2) Model retired / unknown -> pick an available Flash model once.

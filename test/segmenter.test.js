@@ -83,3 +83,24 @@ test('speechEndedAt excludes trailing silence (for latency metrics)', () => {
   assert.ok(clips[0].speechEndedAt <= 1000 + 400, `speechEndedAt ${clips[0].speechEndedAt}`);
 });
 
+
+test('end of speech is measured from the last loud sound (the VAD hangover does not add to the wait)', () => {
+  const clips = run([['silence', 500], ['speech', 1500], ['silence', 2000]], { endOfSpeechMs: 550 });
+  assert.equal(clips.length, 1);
+  // The clip is emitted ~550 ms after the last loud frame, not 550 + 250 ms hangover.
+  assert.ok(clips[0].speechEndedAt <= 500 + 1500 + 80, `speechEndedAt ${clips[0].speechEndedAt}`);
+});
+
+test('after a command ends, the next clip holds ONLY the next command (old audio is dropped)', () => {
+  // three short commands 1.3 s apart: all within one 6 s window
+  const clips = run([['speech', 1000], ['silence', 1300], ['speech', 1000], ['silence', 1300], ['speech', 1000], ['silence', 1500]], { endOfSpeechMs: 550 });
+  assert.equal(clips.length, 3);
+  for (const c of clips) assert.ok(c.speechMs <= 1000 + 400, `clip holds ${c.speechMs} ms of speech`);
+});
+
+test('after a hop the overlap IS kept (the sentence continues)', () => {
+  const clips = run([['speech', 9000], ['silence', 1500]]);
+  const hops = clips.filter((c) => c.reason === 'hop');
+  assert.ok(hops.length >= 1);
+  assert.ok(clips.at(-1).durationMs > 3000, 'final clip should include the overlap with the last hop');
+});

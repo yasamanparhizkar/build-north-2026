@@ -22,8 +22,8 @@ export const CLIP_WINDOW_MS = 6000;
 export const CLIP_HOP_MS = 4000;
 /** A clip is only sent if it contains at least this much *new* speech. */
 export const MIN_SPEECH_MS = 250;
-/** After this much silence following speech, the utterance is sent at once. */
-export const END_OF_SPEECH_MS = 700;
+/** Quiet time after the LAST LOUD sound that ends a command; the clip is sent right then. Lower = faster but may cut a sentence at a long pause. */
+export const END_OF_SPEECH_MS = 550;
 /** Clips older than this when processing starts are discarded as stale. */
 export const MAX_CLIP_AGE_MS = 15000;
 /** The same command (same target) within this window is ignored (overlap dedupe). */
