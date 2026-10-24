@@ -25,6 +25,12 @@ test('every file referenced by the manifest exists', () => {
 });
 
 
+test('every icon referenced by the manifest exists', () => {
+  const m = manifest();
+  const icons = [...Object.values(m.icons), ...Object.values(m.action.default_icon)];
+  for (const f of icons) assert.ok(fs.existsSync(f), `missing ${f}`);
+});
+
 test('every web-accessible resource (incl. vendored Driver.js) exists', () => {
   const m = manifest();
   const exact = m.web_accessible_resources.flatMap((w) => w.resources).filter((r) => !r.includes('*'));

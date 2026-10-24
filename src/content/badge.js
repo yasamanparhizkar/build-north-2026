@@ -31,7 +31,7 @@ export function setIndicator(listening) {
   indicator = document.createElement('div');
   indicator.className = 'indicator';
   const text = document.createElement('span');
-  text.textContent = '🎧 Helper is listening';
+  text.textContent = 'Listening';
   const stop = document.createElement('button');
   stop.type = 'button';
   stop.textContent = 'Stop';

@@ -302,11 +302,11 @@ await showSpotlight(elementOrSelector, 'Click the Record button.', {
 |---|---|
 | `tracker.js` | Follows targets every animation frame (page/container scroll, resize, transforms, fixed elements, same-origin iframes). Re-finds targets that a framework re-rendered (`reacquire`) and reports when they are lost |
 | `renderer.js` | One SVG in the closed Shadow DOM: 82% black dim with blurred (feathered), rounded openings and a soft warm-white glow. No `viewBox`, so SVG units equal CSS pixels |
-| `typography.js` | Floating white instruction text (no box, bubble or arrow), placed below/above/right/left, kept on screen and off the target. Discreet × close button. Numbered markers for candidates |
+| `typography.js` | Floating white instruction text (no box, bubble or arrow), placed below/above/right/left, kept on screen and off the target. Discreet ï¿½ close button. Numbered markers for candidates |
 | `geometry.js` | Pure placement math (unit tested) |
 | `index.js` | Public API, lifecycle, Escape, click-to-dismiss, timeout and cleanup |
 
-**Behaviour:** smooth-scrolls to the target first, then fades in over 300 ms. It ends after a real (`isTrusted`) click on the target, Escape, ×, or the timeout. It never clicks or moves focus. Every visual has `pointer-events: none` except the × button. With `prefers-reduced-motion` there are no fades or smooth scrolling.
+**Behaviour:** smooth-scrolls to the target first, then fades in over 300 ms. It ends after a real (`isTrusted`) click on the target, Escape, ï¿½, or the timeout. It never clicks or moves focus. Every visual has `pointer-events: none` except the ï¿½ button. With `prefers-reduced-motion` there are no fades or smooth scrolling.
 
 **Demo without AI:** popup ? **Open spotlight demo**, or open `chrome-extension://<id>/src/demo/demo.html`. It includes simple buttons, navigation links, a scroll container, fixed and transformed elements, a re-rendering (React-like) button, a same-origin iframe, edge targets, and hidden/missing targets.
 
