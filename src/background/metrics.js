@@ -36,6 +36,7 @@ export function summarize(metrics, now) {
     medianMatchMs: median(pick('match')),
     medianTotalMs: median(pick('total')),
     apiCallsPerMinute: minutes ? +(metrics.apiCalls / minutes).toFixed(1) : 0,
+    apiErrors: metrics.apiErrors,
     apiErrorRate: metrics.apiCalls ? +(metrics.apiErrors / metrics.apiCalls).toFixed(2) : 0,
     audioSecondsSent: +metrics.audioSecondsSent.toFixed(1),
     clipsReceived: metrics.clipsReceived,

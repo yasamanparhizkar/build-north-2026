@@ -240,7 +240,7 @@ test('popup renders and reports idle state', async () => {
   const errors = [];
   popup.on('pageerror', (e) => errors.push(e.message));
   await popup.goto(`chrome-extension://${id}/src/popup/popup.html`);
-  await popup.waitForFunction(() => document.getElementById('state').textContent.includes('Not listening'), { timeout: 5000 });
+  await popup.waitForFunction(() => document.getElementById('status-label').textContent.includes('Not on a Meet tab'), { timeout: 5000 });
   assert.deepEqual(errors, []);
   await popup.screenshot({ path: path.join(SHOTS, 'popup.png') });
   await popup.close();
@@ -251,9 +251,9 @@ test('popup "Forget API key" removes the stored key', async () => {
   const id = new URL(worker.url()).host;
   const popup = await browser.newPage();
   await popup.goto(`chrome-extension://${id}/src/popup/popup.html`);
-  await popup.waitForFunction(() => document.getElementById('apiKey').value === 'temporary-test-key');
-  await popup.evaluate(() => document.getElementById('forgetKey').click());
-  await popup.waitForFunction(() => document.getElementById('status').textContent.includes('removed'));
+  await popup.waitForFunction(() => document.getElementById('api-key').value === 'temporary-test-key');
+  await popup.evaluate(() => document.getElementById('forget-key').click());
+  await popup.waitForFunction(() => document.getElementById('api-key').value === '');
   assert.equal(await sw(async () => (await chrome.storage.local.get('geminiApiKey')).geminiApiKey), undefined);
   await popup.close();
 });
