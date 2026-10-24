@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  StreamDownsampler, downsample, encodeWav, floatToInt16, pcm16Base64, rms, toBase64
+  StreamDownsampler, downsample, encodeWav, floatToInt16, rms, toBase64
 } from '../src/offscreen/audio.js';
 
 test('rms of silence is 0 and of a constant signal is its amplitude', () => {
@@ -66,9 +66,3 @@ test('toBase64 round-trips, including large buffers', () => {
   assert.equal(Buffer.from(toBase64(big), 'base64').length, big.length);
 });
 
-test('pcm16Base64 produces little-endian PCM16', () => {
-  const bytes = Buffer.from(pcm16Base64(new Float32Array([1, 0])), 'base64');
-  assert.equal(bytes.length, 4);
-  assert.equal(bytes.readInt16LE(0), 0x7fff);
-  assert.equal(bytes.readInt16LE(2), 0);
-});

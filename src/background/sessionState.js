@@ -41,7 +41,7 @@ export function isListeningStatus(status) {
 }
 
 /**
- * Decide whether a captured clip / utterance should be skipped before calling Gemini.
+ * Decide whether a captured clip should be skipped before calling Gemini.
  * @returns {string|null} reason, or null if it should be processed
  */
 export function staleReason(job, session, now) {

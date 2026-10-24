@@ -29,19 +29,6 @@ function allowed(kind, action) {
   return kind === 'extension';
 }
 
-const LIVE_STATUS_TEXT = {
-  connecting: '🎧 Connecting…',
-  reconnecting: '🔄 Reconnecting…',
-  error: '❌ Live listening failed'
-};
-
-async function onLiveStatus(state, detail) {
-  const s = await getSession();
-  const text = LIVE_STATUS_TEXT[state];
-  if (text) notifyTab(s.captureTabId, { action: MSG.STATUS, text: detail ? `${text} ${detail}` : text, autoHideMs: 4000 });
-  if (state === 'error') await interruptListening(detail || 'Live transcription failed', s.generation);
-}
-
 async function getState() {
   const [session, { metrics }] = await Promise.all([getSession(), chrome.storage.session.get('metrics')]);
   return { ...session, recentCommands: undefined, metrics: metrics ? summarize(metrics, Date.now()) : null };
@@ -72,12 +59,6 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       return reply(processText(String(msg.text || '').slice(0, 300), { tabId: msg.tabId }));
     case MSG.AUDIO_CLIP:
       audioQueue.push(() => processAudioClip(msg));
-      return;
-    case MSG.UTTERANCE:
-      audioQueue.push(() => processText(String(msg.text || '').slice(0, 300), { job: msg }));
-      return;
-    case MSG.LIVE_STATUS:
-      onLiveStatus(msg.state, msg.detail);
       return;
     case MSG.CAPTURE_ENDED:
     case MSG.CAPTURE_ERROR:

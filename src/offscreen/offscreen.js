@@ -1,18 +1,14 @@
 // Offscreen document: captures the Google Meet tab's playback audio, keeps it
-// audible, and turns it into overlapping speech clips (default) or a live
-// transcript stream (experimental) for the background worker.
+// audible, and turns it into overlapping speech clips for the background worker.
 // Raw audio is never stored; clips live only in memory until sent.
 import {
-  AUDIO_FRAME_SIZE, CLIP_HOP_MS, CLIP_WINDOW_MS, END_OF_SPEECH_MS, MIN_SPEECH_MS,
-  TARGET_SAMPLE_RATE, UTTERANCE_SILENCE_MS, VOICE_MODES
+  AUDIO_FRAME_SIZE, CLIP_HOP_MS, CLIP_WINDOW_MS, END_OF_SPEECH_MS, MIN_SPEECH_MS, TARGET_SAMPLE_RATE
 } from '../shared/constants.js';
 import { MSG, TARGET_OFFSCREEN } from '../shared/messages.js';
-import { LiveTranscriber } from '../voice/liveClient.js';
-import { UtteranceDetector } from '../voice/utteranceDetector.js';
-import { StreamDownsampler, encodeWav, pcm16Base64, toBase64 } from './audio.js';
+import { StreamDownsampler, encodeWav, toBase64 } from './audio.js';
 import { ClipSegmenter } from './segmenter.js';
 
-let state = null; // { generation, audioCtx, mediaStream, processor, segmenter, transcriber, detector }
+let state = null; // { generation, audioCtx, mediaStream, processor, segmenter, seq }
 
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   if (msg?.target !== TARGET_OFFSCREEN || sender.id !== chrome.runtime.id) return;
@@ -32,7 +28,7 @@ function send(msg) {
   chrome.runtime.sendMessage(msg).catch(() => {});
 }
 
-async function startCapture({ streamId, generation, mode, apiKey, liveModel }) {
+async function startCapture({ streamId, generation }) {
   stopCapture();
   const mediaStream = await navigator.mediaDevices.getUserMedia({
     audio: { mandatory: { chromeMediaSource: 'tab', chromeMediaSourceId: streamId } },
@@ -61,40 +57,31 @@ async function startCapture({ streamId, generation, mode, apiKey, liveModel }) {
 
   const downsampler = new StreamDownsampler(audioCtx.sampleRate, TARGET_SAMPLE_RATE);
   state = { generation, audioCtx, mediaStream, processor, seq: 0 };
-
-  if (mode === VOICE_MODES.LIVE) {
-    setupLive(apiKey, liveModel);
-    processor.port.onmessage = (e) => {
-      const samples = downsampler.process(e.data);
-      if (samples.length) state?.transcriber?.sendAudio(pcm16Base64(samples));
-    };
-  } else {
-    state.segmenter = new ClipSegmenter({
-      sampleRate: TARGET_SAMPLE_RATE,
-      windowMs: CLIP_WINDOW_MS,
-      hopMs: CLIP_HOP_MS,
-      minSpeechMs: MIN_SPEECH_MS,
-      endOfSpeechMs: END_OF_SPEECH_MS,
-      onClip: (clip) => {
-        if (!state) return;
-        send({
-          action: MSG.AUDIO_CLIP,
-          generation,
-          seq: state.seq++,
-          audioBase64: toBase64(encodeWav(clip.samples, TARGET_SAMPLE_RATE)),
-          mimeType: 'audio/wav',
-          durationMs: clip.durationMs,
-          speechMs: clip.speechMs,
-          reason: clip.reason,
-          capturedAt: clip.speechEndedAt
-        });
-      }
-    });
-    processor.port.onmessage = (e) => {
-      const samples = downsampler.process(e.data);
-      state?.segmenter?.push(samples, Date.now());
-    };
-  }
+  state.segmenter = new ClipSegmenter({
+    sampleRate: TARGET_SAMPLE_RATE,
+    windowMs: CLIP_WINDOW_MS,
+    hopMs: CLIP_HOP_MS,
+    minSpeechMs: MIN_SPEECH_MS,
+    endOfSpeechMs: END_OF_SPEECH_MS,
+    onClip: (clip) => {
+      if (!state) return;
+      send({
+        action: MSG.AUDIO_CLIP,
+        generation,
+        seq: state.seq++,
+        audioBase64: toBase64(encodeWav(clip.samples, TARGET_SAMPLE_RATE)),
+        mimeType: 'audio/wav',
+        durationMs: clip.durationMs,
+        speechMs: clip.speechMs,
+        reason: clip.reason,
+        capturedAt: clip.speechEndedAt
+      });
+    }
+  });
+  processor.port.onmessage = (e) => {
+    const samples = downsampler.process(e.data);
+    state?.segmenter?.push(samples, Date.now());
+  };
 
   // Meet tab closed / navigated away / capture revoked.
   for (const track of mediaStream.getAudioTracks()) {
@@ -105,25 +92,6 @@ async function startCapture({ streamId, generation, mode, apiKey, liveModel }) {
   }
 }
 
-function setupLive(apiKey, model) {
-  const generation = state.generation;
-  state.detector = new UtteranceDetector({
-    silenceMs: UTTERANCE_SILENCE_MS,
-    onUtterance: (text) => {
-      if (!state) return;
-      send({ action: MSG.UTTERANCE, generation, seq: state.seq++, text, capturedAt: Date.now() });
-    }
-  });
-  state.transcriber = new LiveTranscriber({
-    apiKey,
-    model,
-    onText: (fragment) => state?.detector?.feed(fragment),
-    onTurnComplete: () => state?.detector?.flush(),
-    onStatus: (s, detail) => send({ action: MSG.LIVE_STATUS, generation, state: s, detail })
-  });
-  state.transcriber.start();
-}
-
 function stopCapture() {
   if (!state) return;
   const s = state;
@@ -132,7 +100,5 @@ function stopCapture() {
   try { s.processor.disconnect(); } catch { /* ignore */ }
   s.mediaStream.getTracks().forEach((t) => { t.onended = null; t.stop(); });
   s.audioCtx.close().catch(() => {});
-  s.transcriber?.stop();
-  s.detector?.reset();
   s.segmenter?.reset();
 }
