@@ -1,0 +1,31 @@
+{
+  "manifest_version": 3,
+  "name": "Senior Helper Pointer",
+  "version": "1.2.0",
+  "description": "Listens to a family member on Google Meet and points at the right button on the senior's screen. Never clicks for you.",
+  "minimum_chrome_version": "116",
+  "permissions": ["activeTab", "scripting", "storage", "tabCapture", "offscreen"],
+  "host_permissions": ["<all_urls>"],
+  "background": {
+    "service_worker": "src/background/index.js",
+    "type": "module"
+  },
+  "action": {
+    "default_popup": "src/popup/popup.html",
+    "default_title": "Senior Helper Pointer"
+  },
+  "content_scripts": [
+    {
+      "matches": ["http://*/*", "https://*/*"],
+      "js": ["src/content/loader.js"],
+      "run_at": "document_idle",
+      "all_frames": false
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": ["src/content/*.js", "src/content/spotlight/*.js", "src/shared/*.js", "src/vendor/driver.js/driver.js.mjs", "src/vendor/driver.js/driver.css"],
+      "matches": ["http://*/*", "https://*/*"]
+    }
+  ]
+}
