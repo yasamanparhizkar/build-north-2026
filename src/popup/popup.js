@@ -3,7 +3,12 @@ import { isMeetUrl } from '../shared/urls.js';
 
 const $ = (id) => document.getElementById(id);
 const mainView = $('main-view');
+const textView = $('text-view');
 const settingsView = $('settings-view');
+const askForm = $('ask-form');
+const askInput = $('ask-input');
+const askSubmit = $('ask-submit');
+const askStatus = $('ask-status');
 const listenSwitch = $('listen-switch');
 const statusLabel = $('status-label');
 const wave = $('wave');
@@ -23,9 +28,24 @@ let saveTimer = null;
 
 const activeTab = async () => (await chrome.tabs.query({ active: true, currentWindow: true }))[0];
 
-function showView(settings) {
-  mainView.hidden = settings;
-  settingsView.hidden = !settings;
+const views = { main: mainView, text: textView, settings: settingsView };
+let current = 'main';
+let beforeSettings = 'main';
+
+function show(name) {
+  if (name === 'settings') beforeSettings = current;
+  for (const [key, el] of Object.entries(views)) el.hidden = key !== name;
+  current = name;
+  if (name === 'text') askInput.focus();
+}
+
+/** Plain one-line result for the text page. The highlight on the page is the main feedback. */
+function resultMessage(res) {
+  if (res?.ok === false) return res.error || "Couldn't reach the page. Please try again.";
+  const status = res?.status || '';
+  if (status.startsWith('❌')) return status.replace(/^❌\s*/, '');
+  if (status.startsWith('✅') || status.includes('Duplicate') || status.includes('Skipped')) return '';
+  return "Couldn't find that on this page.";
 }
 
 function renderDiag(s) {
@@ -82,8 +102,32 @@ async function init() {
   refresh();
 }
 
-$('open-settings').addEventListener('click', () => showView(true));
-$('back').addEventListener('click', () => showView(false));
+$('open-settings').addEventListener('click', () => show('settings'));
+$('open-settings-from-text').addEventListener('click', () => show('settings'));
+$('open-text').addEventListener('click', () => show('text'));
+$('open-audio').addEventListener('click', () => show('main'));
+$('back').addEventListener('click', () => show(beforeSettings));
+
+const syncAskButton = () => { askSubmit.disabled = askInput.value.trim() === ''; };
+askInput.addEventListener('input', syncAskButton);
+syncAskButton();
+
+askForm.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const query = askInput.value.trim();
+  if (!query) return;
+  askSubmit.disabled = true;
+  askStatus.textContent = 'Looking…';
+  try {
+    const tab = await activeTab();
+    const res = await chrome.runtime.sendMessage({ action: MSG.MANUAL_COMMAND, text: query, tabId: tab?.id });
+    askStatus.textContent = resultMessage(res);
+  } catch {
+    askStatus.textContent = "Couldn't reach the helper. Please try again.";
+  } finally {
+    syncAskButton();
+  }
+});
 
 saveBtn.addEventListener('click', async () => {
   await chrome.storage.local.set({

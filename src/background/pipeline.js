@@ -147,15 +147,9 @@ export async function processAudioClip(clip) {
   }
 }
 
-/** Text from typing (popup) or from the Live transcriber (job set). */
-export async function processText(text, { tabId: forcedTabId, job = null } = {}) {
+/** A command typed by the user (MANUAL_COMMAND). */
+export async function processText(text, { tabId: forcedTabId } = {}) {
   const session = await getSession();
-  if (job) {
-    const stale = staleReason(job, session, Date.now());
-    if (stale) return { status: `⏭️ Skipped (${stale})` };
-    await updateSession({ lastSeqHandled: job.seq, lastHeard: text.slice(-120) });
-  }
-  const typed = !job;
   const tabId = forcedTabId || (await findTargetTab(session.captureTabId));
   if (!tabId) throw new Error('No page to point on');
 
@@ -170,18 +164,17 @@ export async function processText(text, { tabId: forcedTabId, job = null } = {})
         gemini = latencyMs;
         decision = decideFromModel(result, snapshot.elements);
         // A typed command is always meant as a command; fall back to the matcher.
-        if (typed && decision.kind === 'ignore') decision = decideFromText(text, snapshot.elements, { allowAmbiguous: true });
+        if (decision.kind === 'ignore') decision = decideFromText(text, snapshot.elements, { allowAmbiguous: true });
       } else {
         decision = decideFromText(text, snapshot.elements, { allowAmbiguous: true });
       }
     }
     return await applyDecision({
       decision,
-      job,
       tabId,
       snapshot,
-      typed,
-      timings: { gemini, startedAt: job?.capturedAt || Date.now() }
+      typed: true,
+      timings: { gemini, startedAt: Date.now() }
     });
   } catch (e) {
     return handleGeminiError(e, tabId);

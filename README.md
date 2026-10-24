@@ -95,7 +95,7 @@ It also prints lines like:
 
 | Suite | Covers |
 |---|---|
-| Unit (`test/*.test.js`) | Audio encoding/resampling, voice-activity detection and overlapping clips, prompt and schema, response validation (made-up ids, unsupported actions, malformed JSON), Gemini client (model fallback, 429, 5xx, timeout), matcher and synonyms, ambiguity handling, session state machine, stale-result rejection, dedupe, metrics, snapshot registry, URL filter, Live protocol |
+| Unit (`test/*.test.js`) | Audio encoding/resampling, voice-activity detection and overlapping clips, prompt and schema, response validation (made-up ids, unsupported actions, malformed JSON), Gemini client (model fallback, 429, 5xx, timeout), matcher and synonyms, ambiguity handling, session state machine, stale-result rejection, dedupe, metrics, snapshot registry, URL filter |
 | Integration (`test/integration/`) | Spotlight pixels (target lit, page dark, card/glow on top, scroll/resize, clear, no stacking, candidates, reduced motion, Stop clickable), injection, shadow DOM, iframes, privacy (field values never sent), snapshot validation, pointer tracking, **zero clicks**, re-injection, popup and "Forget API key", restricted pages, voice pipeline with mocked Gemini, real Wikipedia and example.com |
 | Manual (sections 3–4, [docs/TESTING.md](docs/TESTING.md)) | Real Gmail/Meet pages, real tab audio capture, real Gemini, latency |
 
@@ -191,9 +191,9 @@ If any step fails, see [Troubleshooting](#troubleshooting). For the full 15-step
 | Where is it saved? | `chrome.storage.local` of this extension, inside your Chrome profile folder on disk (e.g. `%LOCALAPPDATA%\Google\Chrome\User Data\Default\Local Extension Settings\<extension-id>\`). |
 | Is it encrypted? | **No.** Anyone with access to your Windows account or profile folder could read it. It is not a secure vault. |
 | Is it in the code or git history? | **No.** The code reads it from storage at runtime. A scan of the working tree and the full git history found no Google API keys. Never paste a key into a source file. |
-| Who receives it? | Only Google's Gemini API, in the `x-goog-api-key` request header (clip mode, the default). The experimental Live mode puts it in the WebSocket URL, because browser WebSockets cannot set headers. |
+| Who receives it? | Only Google's Gemini API, in the `x-goog-api-key` request header. |
 | Is it logged or synced? | Not logged by the extension. `storage.local` is not synced to other devices. |
-| Can web pages read it? | No. Content scripts never receive the key. It is used only in the service worker (and in the offscreen document in Live mode). |
+| Can web pages read it? | No. Content scripts never receive the key. It is used only in the service worker. |
 | How do I remove it? | Popup → Settings → **Forget API key**. Removing the extension also deletes it. |
 | What about the tests? | The integration tests use fake keys in a throwaway Chrome for Testing profile. |
 
@@ -259,7 +259,7 @@ src/
     queue.js             in-order queue that keeps only the newest waiting job
     tabs.js              top-frame messaging, auto-injection, target-tab lookup
   offscreen/           audio capture document
-    offscreen.js         tab stream -> playback + analysis branch -> clips / live stream
+    offscreen.js         tab stream -> playback + analysis branch -> speech clips
     segmenter.js         EnergyVad + ClipSegmenter (pure)
     audio.js             streaming resampler, WAV/PCM encoding (pure)
   content/             top frame of http(s) pages
@@ -273,7 +273,6 @@ src/
     pointer.js           box + arrow + label, follows layout, auto-expires
     badge.js             status badge + "listening" pill with Stop button
     overlay.js / styles.js  closed Shadow-DOM overlay host + CSS
-  voice/               experimental Gemini Live streaming client (not the default)
   popup/               start/stop, test command, settings, diagnostics
   shared/              constants, message names, URL helpers
 test/                  unit tests (node:test)
@@ -286,7 +285,7 @@ Modules marked *pure* have no Chrome or DOM dependencies and are unit tested in 
 
 ## Spotlight module
 
-`src/content/spotlight/` is an independent module. It has no Chrome-extension dependencies, so the demo page and the content script both use it.
+`src/content/spotlight/` is an independent module. It has no Chrome-extension dependencies.
 
 ```js
 import { showSpotlight, updateSpotlight, hideSpotlight, destroySpotlight } from './spotlight/index.js';
@@ -308,8 +307,6 @@ await showSpotlight(elementOrSelector, 'Click the Record button.', {
 
 **Behaviour:** smooth-scrolls to the target first, then fades in over 300 ms. It ends after a real (`isTrusted`) click on the target, Escape, �, or the timeout. It never clicks or moves focus. Every visual has `pointer-events: none` except the � button. With `prefers-reduced-motion` there are no fades or smooth scrolling.
 
-**Demo without AI:** popup ? **Open spotlight demo**, or open `chrome-extension://<id>/src/demo/demo.html`. It includes simple buttons, navigation links, a scroll container, fixed and transformed elements, a re-rendering (React-like) button, a same-origin iframe, edge targets, and hidden/missing targets.
-
 **Limitations:**
 - **Cross-origin iframes:** not supported. The content script runs only in the top frame, and Chrome won't let it measure inside other origins.
 - **Closed shadow roots and canvas UIs:** can't be targeted.
@@ -324,8 +321,6 @@ await showSpotlight(elementOrSelector, 'Click the Record button.', {
 |---|---|---|
 | Gemini API key | – | Required for voice only. See [Where is the API key stored?](#where-is-the-api-key-stored) |
 | Model | `gemini-flash-latest` | Google's alias for the current Flash model. If the model is not found, an available Flash model is chosen automatically and saved here |
-| Voice mode | Audio clips | *Gemini Live streaming* is experimental |
-| Live model | see `constants.js` | Only used in Live mode |
 | Pointer style | Spotlight | Built-in spotlight (default) or *Driver.js highlight*. Driver.js is used for a single target only; multiple candidates always use the spotlight. In Driver.js mode, clicking the dark area closes the highlight |
 
 **Tuning constants** in [src/shared/constants.js](src/shared/constants.js):
@@ -372,8 +367,6 @@ await showSpotlight(elementOrSelector, 'Click the Record button.', {
 - Captured audio is the whole Meet tab playback, including the senior's own voice if Meet echoes it, and any shared media. Gemini decides what is an instruction.
 - Cross-origin iframes, closed shadow roots, canvas UIs and native browser dialogs are not scanned.
 - Elements in the browser's top layer (`<dialog>.showModal()`, fullscreen) can cover the overlay.
-- `ScriptProcessorNode` is deprecated but still supported. An AudioWorklet port is a possible future improvement.
-- The experimental *Gemini Live* mode (`src/voice/`) depends on a Live model name that changes often.
 
 ## Roadmap
 

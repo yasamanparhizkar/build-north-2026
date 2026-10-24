@@ -11,14 +11,10 @@ export const DEFAULT_MODEL = 'gemini-flash-latest';
 export const GEMINI_API_BASE = 'https://generativelanguage.googleapis.com/v1beta';
 export const GEMINI_TIMEOUT_MS = 15000;
 
-// ---- Gemini Live (experimental streaming mode) ----
-export const DEFAULT_LIVE_MODEL = 'gemini-2.5-flash-native-audio-preview-09-2025';
-export const VOICE_MODES = Object.freeze({ CLIPS: 'clips', LIVE: 'live' });
-
 // ---- Audio ----
 /** Sample rate sent to Gemini (16 kHz mono). */
 export const TARGET_SAMPLE_RATE = 16000;
-/** Samples per ScriptProcessor frame (2048 @ 48 kHz is about 43 ms). */
+/** Samples per audio frame sent from the AudioWorklet (2048 @ 48 kHz is about 43 ms). */
 export const AUDIO_FRAME_SIZE = 2048;
 /** Rolling window length: each clip holds up to this much recent audio. */
 export const CLIP_WINDOW_MS = 6000;
@@ -32,8 +28,6 @@ export const END_OF_SPEECH_MS = 700;
 export const MAX_CLIP_AGE_MS = 15000;
 /** The same command (same target) within this window is ignored (overlap dedupe). */
 export const DEDUPE_WINDOW_MS = 10000;
-/** Live mode: transcript silence that ends an utterance. */
-export const UTTERANCE_SILENCE_MS = 400;
 
 // ---- Page elements ----
 export const MAX_ELEMENTS = 180;
