@@ -17,6 +17,6 @@
     "driver.js": "^1.10.2"
   },
   "devDependencies": {
-    "puppeteer": "^24.43.1"
+    "puppeteer": "^25.16.0"
   }
 }

@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "Senior Helper Pointer",
-  "version": "1.2.0",
-  "description": "Listens to a family member on Google Meet and points at the right button on the senior's screen. Never clicks for you.",
+  "name": "Ollie",
+  "version": "1.0.0",
+  "description": "Ollie shows you where to look when a family member is helping you fix your computer!",
   "minimum_chrome_version": "116",
   "permissions": ["activeTab", "scripting", "storage", "tabCapture", "offscreen"],
   "host_permissions": ["<all_urls>"],
@@ -10,9 +10,19 @@
     "service_worker": "src/background/index.js",
     "type": "module"
   },
+  "icons": {
+    "16": "assets/icon/icon16.png",
+    "32": "assets/icon/icon32.png",
+    "48": "assets/icon/icon48.png",
+    "128": "assets/icon/icon128.png"
+  },
   "action": {
     "default_popup": "src/popup/popup.html",
-    "default_title": "Senior Helper Pointer"
+    "default_title": "Senior Helper Pointer",
+    "default_icon": {
+      "16": "assets/icon/icon16.png",
+      "32": "assets/icon/icon32.png"
+    }
   },
   "content_scripts": [
     {

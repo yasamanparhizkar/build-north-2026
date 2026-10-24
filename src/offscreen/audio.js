@@ -94,8 +94,3 @@ export function toBase64(bytes) {
   }
   return btoa(bin);
 }
-
-/** 16 kHz float samples -> base64 PCM16 (Gemini Live input). */
-export function pcm16Base64(float32) {
-  return toBase64(new Uint8Array(floatToInt16(float32).buffer));
-}

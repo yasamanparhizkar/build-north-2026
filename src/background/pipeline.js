@@ -53,7 +53,7 @@ async function applyDecision({ decision, job, tabId, snapshot, timings = {}, typ
   if (decision.kind === 'ignore') return { status: '👂 Not a computer instruction', transcript: decision.transcript };
   if (decision.kind === 'no-match' || !decision.ids.length) {
     const what = decision.target ? `"${decision.target}"` : 'that';
-    notifyTab(tabId, { action: MSG.STATUS, text: `🤷 I couldn't find ${what} on this page.`, autoHideMs: 5000 });
+    notifyTab(tabId, { action: MSG.STATUS, text: `I couldn't find ${what} on this page.`, autoHideMs: 5000 });
     return { status: `🤷 No matching button found for ${what}`, transcript: decision.transcript };
   }
 
@@ -76,7 +76,7 @@ async function applyDecision({ decision, job, tabId, snapshot, timings = {}, typ
   const matchMs = Date.now() - t0 + (snapshot.scanMs || 0);
 
   if (!res?.ok) {
-    notifyTab(tabId, { action: MSG.STATUS, text: '🔄 The page changed. Please say it again.', autoHideMs: 5000 });
+    notifyTab(tabId, { action: MSG.STATUS, text: 'The page changed. Please say it again.', autoHideMs: 5000 });
     return { status: `⚠️ Could not point: ${res?.reason || 'unknown'}` };
   }
 
@@ -101,7 +101,7 @@ async function handleGeminiError(e, tabId) {
   if (e instanceof GeminiError && e.kind === 'rate-limit') {
     const until = Date.now() + e.retryAfterMs;
     await updateSession({ rateLimitedUntil: until, detail: 'Gemini free-tier limit reached; pausing briefly.' });
-    notifyTab(tabId, { action: MSG.STATUS, text: `⏳ Helper is resting for ${Math.ceil(e.retryAfterMs / 1000)}s (API limit).`, autoHideMs: 6000 });
+    notifyTab(tabId, { action: MSG.STATUS, text: `Helper is resting for ${Math.ceil(e.retryAfterMs / 1000)}s (API limit).`, autoHideMs: 6000 });
   } else if (e instanceof GeminiError && e.kind === 'auth') {
     await stopListening({ status: STATUS.ERROR, detail: e.message });
   } else {
@@ -147,15 +147,9 @@ export async function processAudioClip(clip) {
   }
 }
 
-/** Text from typing (popup) or from the Live transcriber (job set). */
-export async function processText(text, { tabId: forcedTabId, job = null } = {}) {
+/** A command typed by the user (MANUAL_COMMAND). */
+export async function processText(text, { tabId: forcedTabId } = {}) {
   const session = await getSession();
-  if (job) {
-    const stale = staleReason(job, session, Date.now());
-    if (stale) return { status: `⏭️ Skipped (${stale})` };
-    await updateSession({ lastSeqHandled: job.seq, lastHeard: text.slice(-120) });
-  }
-  const typed = !job;
   const tabId = forcedTabId || (await findTargetTab(session.captureTabId));
   if (!tabId) throw new Error('No page to point on');
 
@@ -170,18 +164,17 @@ export async function processText(text, { tabId: forcedTabId, job = null } = {})
         gemini = latencyMs;
         decision = decideFromModel(result, snapshot.elements);
         // A typed command is always meant as a command; fall back to the matcher.
-        if (typed && decision.kind === 'ignore') decision = decideFromText(text, snapshot.elements, { allowAmbiguous: true });
+        if (decision.kind === 'ignore') decision = decideFromText(text, snapshot.elements, { allowAmbiguous: true });
       } else {
         decision = decideFromText(text, snapshot.elements, { allowAmbiguous: true });
       }
     }
     return await applyDecision({
       decision,
-      job,
       tabId,
       snapshot,
-      typed,
-      timings: { gemini, startedAt: job?.capturedAt || Date.now() }
+      typed: true,
+      timings: { gemini, startedAt: Date.now() }
     });
   } catch (e) {
     return handleGeminiError(e, tabId);

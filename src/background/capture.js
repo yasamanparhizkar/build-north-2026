@@ -1,7 +1,6 @@
 // Starts/stops Meet tab audio capture through the offscreen document
 // (Chrome 116+ pattern: stream id from the service worker, consumed offscreen).
 import { MSG, TARGET_OFFSCREEN } from '../shared/messages.js';
-import { DEFAULT_LIVE_MODEL, VOICE_MODES } from '../shared/constants.js';
 import { isScriptableUrl } from '../shared/urls.js';
 import { EMPTY_METRICS } from './metrics.js';
 import { STATUS, isListeningStatus } from './sessionState.js';
@@ -51,17 +50,19 @@ async function sendToOffscreen(msg) {
   throw lastError;
 }
 
+// [text, background, text colour].
 export function updateActionBadge(status) {
   const map = {
-    listening: ['ON', '#d93025'],
-    processing: ['ON', '#d93025'],
-    starting: ['…', '#5f6368'],
-    interrupted: ['!', '#f29900'],
-    error: ['!', '#f29900']
+    listening: ['ON', '#34B36F', '#FFFFFF'],
+    processing: ['ON', '#34B36F', '#FFFFFF'],
+    starting: ['…', '#5f6368', '#FFFFFF'],
+    interrupted: ['!', '#f29900', '#FFFFFF'],
+    error: ['!', '#f29900', '#FFFFFF']
   };
-  const [text, color] = map[status] || ['', '#5f6368'];
+  const [text, background, textColor] = map[status] || ['', '#5f6368', '#FFFFFF'];
   chrome.action.setBadgeText({ text }).catch(() => {});
-  chrome.action.setBadgeBackgroundColor({ color }).catch(() => {});
+  chrome.action.setBadgeBackgroundColor({ color: background }).catch(() => {});
+  chrome.action.setBadgeTextColor({ color: textColor }).catch(() => {});
 }
 
 async function broadcastIndicator(listening) {
@@ -74,7 +75,7 @@ async function broadcastIndicator(listening) {
 /** Must follow a user gesture (popup click): the popup grants activeTab for this tab. */
 export async function startListening(tabId) {
   if (!tabId) throw new Error('No tab to listen to');
-  const settings = await chrome.storage.local.get(['geminiApiKey', 'voiceMode', 'liveModel']);
+  const settings = await chrome.storage.local.get(['geminiApiKey']);
   if (!settings.geminiApiKey) throw new Error('Voice needs a Gemini API key. Save one first.');
 
   const current = await getSession();
@@ -88,16 +89,7 @@ export async function startListening(tabId) {
   try {
     const streamId = await chrome.tabCapture.getMediaStreamId({ targetTabId: tabId });
     await ensureOffscreen();
-    const mode = settings.voiceMode === VOICE_MODES.LIVE ? VOICE_MODES.LIVE : VOICE_MODES.CLIPS;
-    const ack = await sendToOffscreen({
-      action: MSG.START_CAPTURE,
-      streamId,
-      generation: session.generation,
-      mode,
-      // The Live WebSocket runs in the offscreen document, so only that mode needs the key there.
-      apiKey: mode === VOICE_MODES.LIVE ? settings.geminiApiKey : undefined,
-      liveModel: (settings.liveModel || '').trim() || DEFAULT_LIVE_MODEL
-    });
+    const ack = await sendToOffscreen({ action: MSG.START_CAPTURE, streamId, generation: session.generation });
     if (!ack?.ok) throw new Error(ack?.error || 'Audio capture did not start');
   } catch (e) {
     await closeOffscreen();

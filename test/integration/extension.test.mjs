@@ -240,7 +240,7 @@ test('popup renders and reports idle state', async () => {
   const errors = [];
   popup.on('pageerror', (e) => errors.push(e.message));
   await popup.goto(`chrome-extension://${id}/src/popup/popup.html`);
-  await popup.waitForFunction(() => document.getElementById('state').textContent.includes('Not listening'), { timeout: 5000 });
+  await popup.waitForFunction(() => document.getElementById('status-label').textContent.includes('Not on a Meet tab'), { timeout: 5000 });
   assert.deepEqual(errors, []);
   await popup.screenshot({ path: path.join(SHOTS, 'popup.png') });
   await popup.close();
@@ -251,10 +251,41 @@ test('popup "Forget API key" removes the stored key', async () => {
   const id = new URL(worker.url()).host;
   const popup = await browser.newPage();
   await popup.goto(`chrome-extension://${id}/src/popup/popup.html`);
-  await popup.waitForFunction(() => document.getElementById('apiKey').value === 'temporary-test-key');
-  await popup.evaluate(() => document.getElementById('forgetKey').click());
-  await popup.waitForFunction(() => document.getElementById('status').textContent.includes('removed'));
+  await popup.waitForFunction(() => document.getElementById('api-key').value === 'temporary-test-key');
+  await popup.evaluate(() => document.getElementById('forget-key').click());
+  await popup.waitForFunction(() => document.getElementById('api-key').value === '');
   assert.equal(await sw(async () => (await chrome.storage.local.get('geminiApiKey')).geminiApiKey), undefined);
+  await popup.close();
+});
+
+test('popup text page: switches views, submits on Enter and shows a result', async () => {
+  const id = new URL(worker.url()).host;
+  const popup = await browser.newPage();
+  const errors = [];
+  popup.on('pageerror', (e) => errors.push(e.message));
+  await popup.goto(`chrome-extension://${id}/src/popup/popup.html`);
+  await popup.evaluate(() => document.getElementById('open-text').click());
+  const views = await popup.evaluate(() => ({
+    text: !document.getElementById('text-view').hidden,
+    main: document.getElementById('main-view').hidden,
+    focused: document.activeElement?.id
+  }));
+  assert.deepEqual(views, { text: true, main: true, focused: 'ask-input' });
+  assert.equal(await popup.evaluate(() => document.getElementById('ask-submit').disabled), true);
+
+  await popup.type('#ask-input', 'click the compose button');
+  assert.equal(await popup.evaluate(() => document.getElementById('ask-submit').disabled), false);
+  await popup.keyboard.press('Enter');
+  // The popup itself is the active tab here, which cannot be pointed at, so a failure text is expected.
+  await popup.waitForFunction(() => {
+    const t = document.getElementById('ask-status').textContent;
+    return t !== '' && t !== 'Looking…';
+  }, { timeout: 15000 });
+  assert.equal(await popup.evaluate(() => document.getElementById('ask-submit').disabled), false, 'button re-enabled after the result');
+
+  await popup.evaluate(() => document.getElementById('open-audio').click());
+  assert.equal(await popup.evaluate(() => document.getElementById('main-view').hidden), false, 'Audio returns to the switch');
+  assert.deepEqual(errors, []);
   await popup.close();
 });
 

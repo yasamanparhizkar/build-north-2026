@@ -12,7 +12,7 @@ Automated tests cover the DOM, matching, pointer and pipeline logic (see `npm ru
 
 | # | Action | Expected |
 |---|---|---|
-| 1 | A joins Meet and presses **Start Listening** on the Meet tab | Badge shows **ON**, popup says *Listening*, the red pill appears |
+| 1 | A joins Meet and turns on the **switch** in the popup (on the Meet tab) | Badge shows **ON**, popup says *Listening* with the waveform, the red pill appears |
 | 2 | B talks | A still hears B clearly, with no echo or doubled audio |
 | 3 | A switches to the Gmail tab | Pill visible on Gmail. Popup still *Listening* |
 | 4 | B: "Click the Compose button." | Pointer on Gmail's **Compose** within a few seconds |

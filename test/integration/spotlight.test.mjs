@@ -263,9 +263,9 @@ test('spotlight: listening indicator and Stop stay usable; page clicks pass thro
   await command('click the compose button');
   await sleep(FADE_MS);
   const img = await shot('spotlight-indicator.png');
-  assert.ok(img.at(stop.left + 4, stop.top + stop.height / 2).lum >= 230, 'Stop button darkened by overlay');
-  const pill = img.at(stop.left - 5, stop.top + stop.height / 2); // gap between label and button
-  assert.ok(pill.r >= 180 && pill.g <= 90, `indicator pill darkened: ${JSON.stringify(pill)}`);
+  // Stop button has a green outline (popup accent #34B36F) and a transparent background.
+  const outline = img.at(stop.left, stop.top + stop.height / 2);
+  assert.ok(outline.g > outline.r + 40 && outline.g > outline.b, `Stop outline is green: ${JSON.stringify(outline)}`);
 
   // A real user click on the highlighted button reaches the page (overlay is click-through).
   const before = await page.evaluate(() => window.__clicks);
