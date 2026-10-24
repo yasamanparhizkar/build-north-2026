@@ -1,5 +1,6 @@
 import { MSG } from '../shared/messages.js';
 import { isMeetUrl } from '../shared/urls.js';
+import { DEFAULT_VOICE_MODE, VOICE_MODES, WAKE_PHRASE } from '../shared/constants.js';
 
 const $ = (id) => document.getElementById(id);
 const mainView = $('main-view');
@@ -16,11 +17,22 @@ const meetHint = $('meet-hint');
 const privacyNote = $('privacy-note');
 const apiKeyInput = $('api-key');
 const modelInput = $('model');
+const voiceModeSelect = $('voice-mode');
+const voiceModeNote = $('voice-mode-note');
 const saveBtn = $('save');
 const diagList = $('diag-list');
 
 const LISTENING = ['listening', 'processing', 'starting'];
 const LISTENING_LABEL = { starting: 'Starting…', listening: 'Listening', processing: 'Listening' };
+const PRIVACY_TEXT = {
+  [VOICE_MODES.WAKE]: `Nothing is shared until someone says "${WAKE_PHRASE}". Then only that request goes to Google Gemini.`,
+  [VOICE_MODES.ALWAYS]: 'While listening, your Meet audio is shared with Google Gemini.'
+};
+const MODE_NOTE = {
+  [VOICE_MODES.WAKE]: `The call is checked on this computer for "${WAKE_PHRASE}". Only the request after it is sent.`,
+  [VOICE_MODES.ALWAYS]: 'Every sentence on the call is sent to Gemini. More natural, but uses more of your API quota.'
+};
+const validMode = (m) => (Object.values(VOICE_MODES).includes(m) ? m : DEFAULT_VOICE_MODE);
 
 let onMeet = false;
 let startError = '';
@@ -79,7 +91,10 @@ async function refresh() {
   const listening = LISTENING.includes(s.status);
   listenSwitch.setAttribute('aria-checked', String(listening));
   listenSwitch.disabled = !listening && !onMeet;
-  statusLabel.textContent = listening ? LISTENING_LABEL[s.status] : onMeet ? 'Not listening' : 'Not on a Meet tab';
+  const waiting = s.status === 'listening' && s.voiceMode === VOICE_MODES.WAKE;
+  statusLabel.textContent = waiting
+    ? `Say "${WAKE_PHRASE}"`
+    : listening ? LISTENING_LABEL[s.status] : onMeet ? 'Not listening' : 'Not on a Meet tab';
 
   wave.toggleAttribute('hidden', !listening); // SVG has no .hidden property
   privacyNote.hidden = listening || !onMeet;
@@ -93,15 +108,25 @@ async function refresh() {
 }
 
 async function init() {
-  const s = await chrome.storage.local.get(['geminiApiKey', 'model']);
+  const s = await chrome.storage.local.get(['geminiApiKey', 'model', 'voiceMode']);
   apiKeyInput.value = s.geminiApiKey || '';
   modelInput.value = s.model || '';
+  voiceModeSelect.value = validMode(s.voiceMode);
+  showModeText(voiceModeSelect.value);
   const tab = await activeTab();
   onMeet = isMeetUrl(tab?.url || '');
   renderDiag({});
   refresh();
 }
 
+function showModeText(mode) {
+  privacyNote.textContent = PRIVACY_TEXT[mode];
+  voiceModeNote.textContent = MODE_NOTE[mode];
+}
+voiceModeSelect.addEventListener('change', () => showModeText(voiceModeSelect.value));
+
+$('open-settings').addEventListener('click', () => showView(true));
+$('back').addEventListener('click', () => showView(false));
 $('open-settings').addEventListener('click', () => show('settings'));
 $('open-settings-from-text').addEventListener('click', () => show('settings'));
 $('open-text').addEventListener('click', () => show('text'));
@@ -132,7 +157,8 @@ askForm.addEventListener('submit', async (e) => {
 saveBtn.addEventListener('click', async () => {
   await chrome.storage.local.set({
     geminiApiKey: apiKeyInput.value.trim(),
-    model: modelInput.value.trim()
+    model: modelInput.value.trim(),
+    voiceMode: validMode(voiceModeSelect.value) // takes effect the next time listening starts
   });
   saveBtn.textContent = 'Saved';
   clearTimeout(saveTimer);

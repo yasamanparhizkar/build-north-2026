@@ -2,6 +2,7 @@
 // Level 1: exact/normalized name match.  Level 2: synonyms, role hints, position,
 // enabled/visible state.  (Level 3, AI disambiguation, lives in pipeline.js.)
 // Pure module (unit tested).
+import { WAKE_PHRASE } from '../shared/constants.js';
 
 const STOP_WORDS = new Set([
   'a', 'an', 'the', 'and', 'or', 'of', 'to', 'in', 'on', 'at', 'for', 'it', 'is', 'are', 'its', 'mom', 'mum', 'dad',
@@ -9,7 +10,8 @@ const STOP_WORDS = new Set([
   'click', 'press', 'tap', 'hit', 'push', 'find', 'see', 'look', 'locate', 'select', 'choose', 'go', 'where',
   'button', 'icon', 'link', 'option', 'one', 'thing', 'can', 'will', 'should', 'need', 'want', 'do', 'does',
   'side', 'hand', 'corner', 'part', 'area', 'screen', 'page', 'with', 'next', 'bit', 'little', 'small', 'big',
-  'left', 'right', 'center', 'centre', 'middle', 'top', 'bottom', 'upper', 'lower', 'up', 'down', 'box', 'field', 'bar', 'tab'
+  'left', 'right', 'center', 'centre', 'middle', 'top', 'bottom', 'upper', 'lower', 'up', 'down', 'box', 'field', 'bar', 'tab',
+  'hey', ...WAKE_PHRASE.toLowerCase().split(/[^a-z0-9]+/).filter(Boolean) // the wake phrase is never a button name
 ]);
 
 const H_WORDS = { left: 'left', right: 'right', center: 'center', centre: 'center' };

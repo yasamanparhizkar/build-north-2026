@@ -75,7 +75,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       sendResponse({ ok: true });
       break;
     case MSG.INDICATOR:
-      setIndicator(!!request.listening);
+      setIndicator(!!request.listening, typeof request.label === 'string' ? request.label.slice(0, 60) : undefined);
       sendResponse({ ok: true, ui: uiState() });
       break;
     case MSG.CLEAR_HIGHLIGHT:

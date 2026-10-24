@@ -8,6 +8,7 @@ export const MSG = Object.freeze({
   MANUAL_COMMAND: 'MANUAL_COMMAND',
   // offscreen -> background
   AUDIO_CLIP: 'AUDIO_CLIP',
+  WAKE_EVENT: 'WAKE_EVENT', // wake phrase heard / gate closed
   CAPTURE_STARTED: 'CAPTURE_STARTED',
   CAPTURE_ENDED: 'CAPTURE_ENDED',
   CAPTURE_ERROR: 'CAPTURE_ERROR',
@@ -30,5 +31,5 @@ export const CONTENT_ALLOWED = new Set([MSG.STOP_LISTENING]);
 
 /** Messages only the offscreen document may send. */
 export const OFFSCREEN_ONLY = new Set([
-  MSG.AUDIO_CLIP, MSG.CAPTURE_STARTED, MSG.CAPTURE_ENDED, MSG.CAPTURE_ERROR
+  MSG.AUDIO_CLIP, MSG.WAKE_EVENT, MSG.CAPTURE_STARTED, MSG.CAPTURE_ENDED, MSG.CAPTURE_ERROR
 ]);

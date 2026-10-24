@@ -20,18 +20,21 @@ export function showStatus(text, autoHideMs) {
   if (autoHideMs) badgeTimer = setTimeout(() => badge.classList.add('hidden'), autoHideMs);
 }
 
-export function setIndicator(listening) {
+export function setIndicator(listening, label = 'Listening') {
   if (!listening) {
     indicator?.remove();
     indicator = null;
     return;
   }
-  if (indicator?.isConnected) return;
+  if (indicator?.isConnected) {
+    indicator.querySelector('span').textContent = label;
+    return;
+  }
   const { layer } = getOverlay();
   indicator = document.createElement('div');
   indicator.className = 'indicator';
   const text = document.createElement('span');
-  text.textContent = 'Listening';
+  text.textContent = label;
   const stop = document.createElement('button');
   stop.type = 'button';
   stop.textContent = 'Stop';
