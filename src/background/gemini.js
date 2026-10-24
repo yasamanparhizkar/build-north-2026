@@ -1,6 +1,8 @@
 // Gemini REST client with structured output, timeouts, model fallback and
 // bounded retries. `fetchImpl` is injectable for unit tests.
-import { BUSY_FALLBACK_MODELS, DEFAULT_MODEL, GEMINI_API_BASE, GEMINI_TIMEOUT_MS } from '../shared/constants.js';
+import {
+  BUSY_FALLBACK_MODELS, DEFAULT_MODEL, GEMINI_API_BASE, GEMINI_ATTEMPT_TIMEOUT_MS, GEMINI_TIMEOUT_MS
+} from '../shared/constants.js';
 import {
   RESPONSE_SCHEMA, SYSTEM_INSTRUCTION, buildUserPrompt, cleanApiKey, parseModelJson, validateModelResult
 } from './prompt.js';
@@ -95,11 +97,12 @@ export async function listFlashModel(key, fetchImpl) {
 export async function callGemini(req, opts = {}) {
   const fetchImpl = opts.fetchImpl || fetch;
   const timeoutMs = opts.timeoutMs || GEMINI_TIMEOUT_MS;
+  const attemptTimeoutMs = opts.attemptTimeoutMs || GEMINI_ATTEMPT_TIMEOUT_MS;
   const key = cleanApiKey(req.apiKey);
   if (!key) throw new GeminiError('API key is empty', { kind: 'auth' });
 
   let model = (req.model || '').trim() || DEFAULT_MODEL;
-  // Models to switch to if this one is overloaded (5xx) or missing; each is tried once.
+  // Models to switch to if this one is overloaded (5xx), silent (timeout) or missing; each is tried once.
   const fallbacks = (opts.fallbackModels || BUSY_FALLBACK_MODELS).filter((m) => m !== model);
   let useThinking = true;
   let resolvedModel = false;
@@ -123,12 +126,27 @@ export async function callGemini(req, opts = {}) {
     const remaining = timeoutMs - (Date.now() - started);
     if (remaining <= 500) throw new GeminiError('Gemini request timed out', { kind: 'timeout' });
 
-    const { res, data } = await postJson(
-      `${GEMINI_API_BASE}/models/${encodeURIComponent(model)}:generateContent`,
-      key,
-      { systemInstruction: { parts: [{ text: SYSTEM_INSTRUCTION }] }, contents: [{ role: 'user', parts }], generationConfig },
-      { fetchImpl, timeoutMs: remaining }
-    );
+    let res;
+    let data;
+    try {
+      ({ res, data } = await postJson(
+        `${GEMINI_API_BASE}/models/${encodeURIComponent(model)}:generateContent`,
+        key,
+        { systemInstruction: { parts: [{ text: SYSTEM_INSTRUCTION }] }, contents: [{ role: 'user', parts }], generationConfig },
+        { fetchImpl, timeoutMs: Math.min(remaining, attemptTimeoutMs) }
+      ));
+    } catch (e) {
+      // A model that never answers sends no error, so a per-model time limit is the only
+      // way to move on (seen with `gemini-flash-latest`: no reply in 60 s).
+      if (e instanceof GeminiError && e.kind === 'timeout' && fallbacks.length) {
+        const next = fallbacks.shift();
+        opts.onFallback?.(next, new GeminiError(`Gemini model "${model}" did not answer in time`, { kind: 'timeout' }));
+        model = next;
+        useThinking = true;
+        continue;
+      }
+      throw e;
+    }
 
     if (res.ok) {
       const text = (data.candidates?.[0]?.content?.parts || []).map((p) => p.text || '').join('');
