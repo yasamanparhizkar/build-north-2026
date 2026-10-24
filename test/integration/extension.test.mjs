@@ -276,23 +276,21 @@ test('wake word: the on-device detector loads under the extension CSP and hears 
   assert.ok(result.pos.ms < result.pos.seconds * 1000, 'runs faster than real time');
 });
 
-test('wake word end to end: offscreen capture sends nothing for chat, one clip after "Hey Jarvis"', async () => {
+/** Plays fixture clips through a second copy of the offscreen document (tab capture replaced). */
+async function runOffscreen(mode, clipNames) {
   const id = new URL(worker.url()).host;
   const page = await browser.newPage();
   const errors = [];
   page.on('pageerror', (e) => errors.push(e.message));
-  // A second copy of the offscreen document; tab capture is replaced by a stream that
-  // plays fixture audio (chat, then a wake-word request) in real time.
   await page.goto(`chrome-extension://${id}/src/offscreen/offscreen.html`);
-  await page.evaluate(async () => {
+  await page.evaluate(async (names) => {
     window.__sent = [];
-    const realSend = chrome.runtime.sendMessage.bind(chrome.runtime);
     chrome.runtime.sendMessage = (msg) => { window.__sent.push(msg); return Promise.resolve(); };
-    window.__realSend = realSend;
     const ctx = new AudioContext({ sampleRate: 48000 });
     await ctx.resume();
     const decode = async (name) => ctx.decodeAudioData(await (await fetch(`/test/fixtures/audio/${name}`)).arrayBuffer());
-    const parts = [await decode('neg_1.wav'), await decode('neg_3.wav'), await decode('pos_2.wav')];
+    const parts = [];
+    for (const n of names) parts.push(await decode(n));
     const gap = 0.8;
     const total = parts.reduce((n, b) => n + b.duration + gap, 0) + 2;
     const out = ctx.createBuffer(1, Math.ceil(total * ctx.sampleRate), ctx.sampleRate);
@@ -305,11 +303,11 @@ test('wake word end to end: offscreen capture sends nothing for chat, one clip a
     navigator.mediaDevices.getUserMedia = async () => dest.stream;
     window.__play = () => src.start();
     window.__totalMs = total * 1000;
-  });
+  }, clipNames);
   // START_CAPTURE comes from the service worker, as in the real extension.
-  const ack = await worker.evaluate(() => chrome.runtime.sendMessage({
-    target: 'offscreen', action: 'START_CAPTURE', streamId: 'fake', generation: 9999, mode: 'wake'
-  }));
+  const ack = await worker.evaluate((m) => chrome.runtime.sendMessage({
+    target: 'offscreen', action: 'START_CAPTURE', streamId: 'fake', generation: 9999, mode: m
+  }), mode);
   assert.equal(ack?.ok, true, JSON.stringify(ack));
   const totalMs = await page.evaluate(() => { window.__play(); return window.__totalMs; });
   await new Promise((r) => setTimeout(r, totalMs + 1500));
@@ -318,18 +316,63 @@ test('wake word end to end: offscreen capture sends nothing for chat, one clip a
   })));
   await worker.evaluate(() => chrome.runtime.sendMessage({ target: 'offscreen', action: 'STOP_CAPTURE' }));
   await page.close();
-
-  console.log(`#   offscreen messages: ${JSON.stringify(sent)}`);
   assert.deepEqual(errors, []);
+  return sent;
+}
+
+test('wake word end to end: offscreen capture sends nothing for chat, one clip after "Hey Jarvis"', async () => {
+  const sent = await runOffscreen('wake', ['neg_1.wav', 'neg_3.wav', 'pos_2.wav']);
+  console.log(`#   offscreen messages (wake): ${JSON.stringify(sent)}`);
   const clips = sent.filter((m) => m.action === 'AUDIO_CLIP');
   assert.equal(clips.length, 1, 'exactly one clip: the request after the wake phrase');
   assert.equal(clips[0].wake, true);
   assert.equal(clips[0].reason, 'wake-command');
   assert.ok(clips[0].durationMs >= 2500 && clips[0].durationMs <= 6500, `clip ${clips[0].durationMs} ms`);
-  const wakeEvents = sent.filter((m) => m.action === 'WAKE_EVENT').map((m) => m.state);
-  assert.deepEqual(wakeEvents, ['open', 'closed']);
+  assert.deepEqual(sent.filter((m) => m.action === 'WAKE_EVENT').map((m) => m.state), ['open', 'closed']);
   // Nothing at all was sent while the two chat sentences played.
   assert.equal(sent.findIndex((m) => m.action === 'WAKE_EVENT'), 0);
+});
+
+test('always-listen end to end: every sentence is sent, no wake word involved', async () => {
+  const sent = await runOffscreen('clips', ['neg_1.wav', 'neg_4.wav']);
+  console.log(`#   offscreen messages (always): ${JSON.stringify(sent)}`);
+  const clips = sent.filter((m) => m.action === 'AUDIO_CLIP');
+  // Ordinary chat (no wake phrase) is sent: overlapping clips during speech, a final one after it.
+  assert.ok(clips.length >= 1, 'chat is sent without any wake phrase');
+  assert.ok(clips.every((c) => c.wake === false && ['hop', 'end-of-speech'].includes(c.reason)));
+  assert.equal(clips.at(-1).reason, 'end-of-speech');
+  assert.equal(sent.filter((m) => m.action === 'WAKE_EVENT').length, 0);
+});
+
+test('popup: main view shows only the listening switch; the mode lives in Settings and is saved', async () => {
+  await sw(() => chrome.storage.local.remove('voiceMode'));
+  const id = new URL(worker.url()).host;
+  const popup = await browser.newPage();
+  const errors = [];
+  popup.on('pageerror', (e) => errors.push(e.message));
+  await popup.goto(`chrome-extension://${id}/src/popup/popup.html`);
+  await popup.waitForFunction(() => document.getElementById('voice-mode').value === 'wake');
+  const view = await popup.evaluate(() => ({
+    mainControls: [...document.querySelectorAll('#main-view button, #main-view select, #main-view input')].map((e) => e.id),
+    settingsHidden: document.getElementById('settings-view').hidden,
+    privacy: document.getElementById('privacy-note').textContent
+  }));
+  assert.deepEqual(view.mainControls, ['listen-switch', 'open-settings']);
+  assert.equal(view.settingsHidden, true);
+  assert.match(view.privacy, /Nothing is shared until someone says "Hey Jarvis"/);
+  await popup.evaluate(() => {
+    document.getElementById('open-settings').click();
+    const sel = document.getElementById('voice-mode');
+    sel.value = 'clips';
+    sel.dispatchEvent(new Event('change'));
+    document.getElementById('save').click();
+  });
+  await new Promise((r) => setTimeout(r, 300));
+  assert.equal(await sw(async () => (await chrome.storage.local.get('voiceMode')).voiceMode), 'clips');
+  assert.match(await popup.evaluate(() => document.getElementById('privacy-note').textContent), /your Meet audio is shared/);
+  await sw(() => chrome.storage.local.remove('voiceMode'));
+  assert.deepEqual(errors, []);
+  await popup.close();
 });
 
 test('popup renders and reports idle state', async () => {
