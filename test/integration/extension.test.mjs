@@ -373,8 +373,14 @@ async function installFakeGemini(behavior) {
     await chrome.storage.local.set({ geminiApiKey: 'test-key', model: 'gemini-2.5-flash' });
     globalThis.__realFetch ??= globalThis.fetch;
     globalThis.__fakeCalls = 0;
+    globalThis.__fakeModels = [];
     globalThis.fetch = async (_url, init) => {
       globalThis.__fakeCalls++;
+      const model = decodeURIComponent(String(_url).split('/models/')[1]?.split(':')[0] || '');
+      globalThis.__fakeModels.push(model);
+      if ((b.busyModels || []).includes(model) || b.busyModels === 'all') {
+        return new Response(JSON.stringify({ error: { message: 'This model is currently experiencing high demand.' } }), { status: 503 });
+      }
       if (b.delayMs) await new Promise((r) => setTimeout(r, b.delayMs));
       if (b.status) return new Response(JSON.stringify({ error: { message: 'quota', details: [{ retryDelay: '30s' }] } }), { status: b.status });
       const text = JSON.parse(init.body).contents[0].parts[0].text;
@@ -427,6 +433,28 @@ test('voice pipeline: a repeated wake-word request is pointed at again (not dedu
   }), g, seq);
   assert.match((await wakeClip(0)).status, /✅ Pointing to: Click Compose/);
   assert.match((await wakeClip(1)).status, /✅ Pointing to: Click Compose/);
+});
+
+test('voice pipeline: an overloaded model (503) falls back to another model and still points', async () => {
+  await installFakeGemini({ transcript: 'Hey Jarvis, click the Compose button', isCommand: true, target: 'Compose', busyModels: ['gemini-2.5-flash'] });
+  const g = await fakeListening(tabId);
+  const res = await sw((gen) => globalThis.__seniorHelperTest.processAudioClip({
+    generation: gen, seq: 0, audioBase64: 'UklGRg==', mimeType: 'audio/wav', capturedAt: Date.now(), durationMs: 3000, wake: true
+  }), g);
+  assert.match(res.status, /✅ Pointing to: Click Compose/);
+  assert.deepEqual(await sw(() => globalThis.__fakeModels), ['gemini-2.5-flash', 'gemini-3.5-flash-lite']);
+});
+
+test('voice pipeline: when every model is overloaded the request fails with a clear status', async () => {
+  await installFakeGemini({ busyModels: 'all' });
+  const g = await fakeListening(tabId);
+  const res = await sw((gen) => globalThis.__seniorHelperTest.processAudioClip({
+    generation: gen, seq: 0, audioBase64: 'UklGRg==', mimeType: 'audio/wav', capturedAt: Date.now(), durationMs: 3000, wake: true
+  }), g);
+  assert.match(res.status, /❌ Gemini 503/);
+  assert.equal(await sw(() => globalThis.__fakeCalls), 3, 'chosen model + 2 fallbacks, no endless retries');
+  const state = await sw(() => globalThis.__seniorHelperTest.getState());
+  assert.equal(state.status, 'listening', 'keeps listening for the next request');
 });
 
 test('voice pipeline: ordinary conversation draws nothing', async () => {
