@@ -46,7 +46,13 @@ async function startCapture({ streamId, generation, mode, apiKey, liveModel }) {
   source.connect(audioCtx.destination);
 
   // Analysis branch goes through a muted gain node so it can never double the playback.
-  const processor = audioCtx.createScriptProcessor(AUDIO_FRAME_SIZE, 1, 1);
+  await audioCtx.audioWorklet.addModule(chrome.runtime.getURL('src/offscreen/frame-forwarder.worklet.js'));
+  const processor = new AudioWorkletNode(audioCtx, 'frame-forwarder', {
+    numberOfInputs: 1,
+    numberOfOutputs: 1,
+    outputChannelCount: [1],
+    processorOptions: { frameSize: AUDIO_FRAME_SIZE }
+  });
   const mute = audioCtx.createGain();
   mute.gain.value = 0;
   source.connect(processor);
@@ -58,8 +64,8 @@ async function startCapture({ streamId, generation, mode, apiKey, liveModel }) {
 
   if (mode === VOICE_MODES.LIVE) {
     setupLive(apiKey, liveModel);
-    processor.onaudioprocess = (e) => {
-      const samples = downsampler.process(e.inputBuffer.getChannelData(0));
+    processor.port.onmessage = (e) => {
+      const samples = downsampler.process(e.data);
       if (samples.length) state?.transcriber?.sendAudio(pcm16Base64(samples));
     };
   } else {
@@ -84,8 +90,8 @@ async function startCapture({ streamId, generation, mode, apiKey, liveModel }) {
         });
       }
     });
-    processor.onaudioprocess = (e) => {
-      const samples = downsampler.process(e.inputBuffer.getChannelData(0));
+    processor.port.onmessage = (e) => {
+      const samples = downsampler.process(e.data);
       state?.segmenter?.push(samples, Date.now());
     };
   }
@@ -122,7 +128,7 @@ function stopCapture() {
   if (!state) return;
   const s = state;
   state = null;
-  s.processor.onaudioprocess = null;
+  s.processor.port.onmessage = null;
   try { s.processor.disconnect(); } catch { /* ignore */ }
   s.mediaStream.getTracks().forEach((t) => { t.onended = null; t.stop(); });
   s.audioCtx.close().catch(() => {});
