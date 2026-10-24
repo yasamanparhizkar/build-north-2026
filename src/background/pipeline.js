@@ -53,7 +53,7 @@ async function applyDecision({ decision, job, tabId, snapshot, timings = {}, typ
   if (decision.kind === 'ignore') return { status: '👂 Not a computer instruction', transcript: decision.transcript };
   if (decision.kind === 'no-match' || !decision.ids.length) {
     const what = decision.target ? `"${decision.target}"` : 'that';
-    notifyTab(tabId, { action: MSG.STATUS, text: `🤷 I couldn't find ${what} on this page.`, autoHideMs: 5000 });
+    notifyTab(tabId, { action: MSG.STATUS, text: `I couldn't find ${what} on this page.`, autoHideMs: 5000 });
     return { status: `🤷 No matching button found for ${what}`, transcript: decision.transcript };
   }
 
@@ -76,7 +76,7 @@ async function applyDecision({ decision, job, tabId, snapshot, timings = {}, typ
   const matchMs = Date.now() - t0 + (snapshot.scanMs || 0);
 
   if (!res?.ok) {
-    notifyTab(tabId, { action: MSG.STATUS, text: '🔄 The page changed. Please say it again.', autoHideMs: 5000 });
+    notifyTab(tabId, { action: MSG.STATUS, text: 'The page changed. Please say it again.', autoHideMs: 5000 });
     return { status: `⚠️ Could not point: ${res?.reason || 'unknown'}` };
   }
 
@@ -101,7 +101,7 @@ async function handleGeminiError(e, tabId) {
   if (e instanceof GeminiError && e.kind === 'rate-limit') {
     const until = Date.now() + e.retryAfterMs;
     await updateSession({ rateLimitedUntil: until, detail: 'Gemini free-tier limit reached; pausing briefly.' });
-    notifyTab(tabId, { action: MSG.STATUS, text: `⏳ Helper is resting for ${Math.ceil(e.retryAfterMs / 1000)}s (API limit).`, autoHideMs: 6000 });
+    notifyTab(tabId, { action: MSG.STATUS, text: `Helper is resting for ${Math.ceil(e.retryAfterMs / 1000)}s (API limit).`, autoHideMs: 6000 });
   } else if (e instanceof GeminiError && e.kind === 'auth') {
     await stopListening({ status: STATUS.ERROR, detail: e.message });
   } else {

@@ -53,7 +53,7 @@ export const OVERLAY_CSS = `
   .hidden { display: none !important; }
 
   /* ---- Status badge + listening indicator (badge.js) ---- */
-  .badge { position: fixed; z-index: 5; bottom: 20px; right: 20px; max-width: 420px; background: #202124; color: #fff; padding: 12px 18px; border-radius: 24px; font-size: 17px; box-shadow: 0 4px 12px rgba(0,0,0,.3); pointer-events: none; }
+  .badge { position: fixed; z-index: 5; bottom: 20px; right: 20px; max-width: 420px; background: rgba(60,60,67,.6); -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px); color: #fff; padding: 8px 14px; border-radius: 22px; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, sans-serif; font-size: 13px; font-weight: 500; letter-spacing: -0.01em; pointer-events: none; }
   .indicator { position: fixed; z-index: 6; top: 12px; right: 12px; display: flex; align-items: center; gap: 12px; background: rgba(60,60,67,.6); -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px); color: #fff; padding: 6px 6px 6px 14px; border-radius: 22px; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, sans-serif; font-size: 13px; font-weight: 500; letter-spacing: -0.01em; pointer-events: auto; }
   .indicator button { all: unset; cursor: pointer; box-sizing: border-box; color: #fff; border: 1px solid #34B36F; border-radius: 14px; padding: 4px 12px; font-size: 12px; font-weight: 600; }
   .indicator button:focus-visible { outline: 2px solid #34B36F; outline-offset: 2px; }
