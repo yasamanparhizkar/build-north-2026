@@ -1,7 +1,9 @@
 // Turns a stream of transcript fragments into complete utterances: a command is
 // considered finished after `silenceMs` without new text (or when flushed).
 export class UtteranceDetector {
-  constructor({ onUtterance, silenceMs = 400, setTimer = setTimeout, clearTimer = clearTimeout }) {
+  // Wrapped, not passed as bare setTimeout/clearTimeout: calling them as
+  // this.setTimer(...) makes `this` the detector, which throws "Illegal invocation".
+  constructor({ onUtterance, silenceMs = 400, setTimer = (fn, ms) => setTimeout(fn, ms), clearTimer = (id) => clearTimeout(id) }) {
     Object.assign(this, { onUtterance, silenceMs, setTimer, clearTimer });
     this.buffer = '';
     this.timer = null;
