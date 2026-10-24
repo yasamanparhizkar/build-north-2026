@@ -51,17 +51,19 @@ async function sendToOffscreen(msg) {
   throw lastError;
 }
 
+// [text, background, text colour].
 export function updateActionBadge(status) {
   const map = {
-    listening: ['ON', '#d93025'],
-    processing: ['ON', '#d93025'],
-    starting: ['…', '#5f6368'],
-    interrupted: ['!', '#f29900'],
-    error: ['!', '#f29900']
+    listening: ['ON', '#34B36F', '#FFFFFF'],
+    processing: ['ON', '#34B36F', '#FFFFFF'],
+    starting: ['…', '#5f6368', '#FFFFFF'],
+    interrupted: ['!', '#f29900', '#FFFFFF'],
+    error: ['!', '#f29900', '#FFFFFF']
   };
-  const [text, color] = map[status] || ['', '#5f6368'];
+  const [text, background, textColor] = map[status] || ['', '#5f6368', '#FFFFFF'];
   chrome.action.setBadgeText({ text }).catch(() => {});
-  chrome.action.setBadgeBackgroundColor({ color }).catch(() => {});
+  chrome.action.setBadgeBackgroundColor({ color: background }).catch(() => {});
+  chrome.action.setBadgeTextColor({ color: textColor }).catch(() => {});
 }
 
 async function broadcastIndicator(listening) {
