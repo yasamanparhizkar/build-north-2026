@@ -286,7 +286,7 @@ Modules marked *pure* have no Chrome or DOM dependencies and are unit tested in 
 
 ## Spotlight module
 
-`src/content/spotlight/` is an independent module. It has no Chrome-extension dependencies, so the demo page and the content script both use it.
+`src/content/spotlight/` is an independent module. It has no Chrome-extension dependencies.
 
 ```js
 import { showSpotlight, updateSpotlight, hideSpotlight, destroySpotlight } from './spotlight/index.js';
@@ -307,8 +307,6 @@ await showSpotlight(elementOrSelector, 'Click the Record button.', {
 | `index.js` | Public API, lifecycle, Escape, click-to-dismiss, timeout and cleanup |
 
 **Behaviour:** smooth-scrolls to the target first, then fades in over 300 ms. It ends after a real (`isTrusted`) click on the target, Escape, �, or the timeout. It never clicks or moves focus. Every visual has `pointer-events: none` except the � button. With `prefers-reduced-motion` there are no fades or smooth scrolling.
-
-**Demo without AI:** popup ? **Open spotlight demo**, or open `chrome-extension://<id>/src/demo/demo.html`. It includes simple buttons, navigation links, a scroll container, fixed and transformed elements, a re-rendering (React-like) button, a same-origin iframe, edge targets, and hidden/missing targets.
 
 **Limitations:**
 - **Cross-origin iframes:** not supported. The content script runs only in the top frame, and Chrome won't let it measure inside other origins.

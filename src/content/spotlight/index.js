@@ -222,7 +222,7 @@ export function destroySpotlight() {
   s?.destroy();
 }
 
-/** Diagnostics (tests, demo). Geometry is in viewport CSS pixels. */
+/** Diagnostics (tests). Geometry is in viewport CSS pixels. */
 export function getSpotlightState() {
   return current && !current.closed ? current.state() : { active: false, shown: false, targets: 0, holes: [], label: null, reason: null };
 }

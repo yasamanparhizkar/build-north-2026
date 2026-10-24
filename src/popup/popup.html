@@ -37,9 +37,31 @@
     <footer class="main-footer">
       <p id="privacy-note" class="privacy">While listening, your Meet audio is shared with Google Gemini.</p>
       <div class="footer-row">
+        <button id="open-text" class="link" type="button">Text</button>
         <button id="open-settings" class="link" type="button">Settings</button>
       </div>
     </footer>
+  </section>
+
+  <section id="text-view" class="text-view" hidden>
+    <div class="text-center">
+      <form id="ask-form" class="ask" autocomplete="off">
+        <input id="ask-input" class="ask-input" type="text"
+               placeholder="What do you need help with?"
+               aria-label="What do you need help with?" spellcheck="true">
+        <button id="ask-submit" class="ask-btn" type="submit" aria-label="Search" disabled>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+               stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <circle cx="11" cy="11" r="7"/><path d="M20 20l-3.8-3.8"/>
+          </svg>
+        </button>
+      </form>
+      <p id="ask-status" class="ask-status" aria-live="polite"></p>
+    </div>
+    <div class="footer-row">
+      <button id="open-audio" class="link" type="button">Audio</button>
+      <button id="open-settings-from-text" class="link" type="button">Settings</button>
+    </div>
   </section>
 
   <section id="settings-view" class="settings" hidden>
