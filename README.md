@@ -26,6 +26,7 @@ A Chrome extension (Manifest V3) that helps an older adult find things on a web 
 | Typed commands (offline matcher), pointer, DOM scanning | ✅ Verified in real Chrome, including live Wikipedia and example.com |
 | Snapshot validation, privacy filters, no-click guarantee | ✅ Verified in real Chrome (integration tests) |
 | Voice pipeline logic (dedupe, stale results, rate limits) | ✅ Verified in real Chrome with a **mocked** Gemini |
+| Trigger word "Hey Jarvis" (on-device) and *Always listen* mode | ✅ Both verified in real Chrome by playing speech through the offscreen capture path; trigger word confirmed by hand in a real Meet call |
 | Meet tab audio capture + real Gemini audio understanding | ⚠️ **Not yet verified in a real call.** Section 4 / [docs/TESTING.md](docs/TESTING.md) |
 | Speech-to-pointer latency | ⚠️ Not measured yet. Recorded live in popup → Diagnostics |
 
@@ -71,14 +72,14 @@ npm run test:integration   # loads the real extension in Chrome for Testing, abo
 ### Expected output
 `npm test` ends with:
 ```
-# tests 97
-# pass 97
+# tests 131
+# pass 131
 # fail 0
 ```
 `npm run test:integration` ends with:
 ```
-# tests 49
-# pass 49
+# tests 56
+# pass 56
 # fail 0
 ```
 It also prints lines like:
@@ -208,7 +209,7 @@ flowchart TD
   Meet["Google Meet tab (capture tab)"] -->|chrome.tabCapture stream id| SW
   subgraph EXT["Chrome extension"]
     SW["Service worker: session state machine, queue, dedupe, Gemini client, decision"]
-    OFF["Offscreen document: playback to speakers, VAD, overlapping 6 s / 4 s clips, WAV"]
+    OFF["Offscreen document: playback to speakers, on-device trigger word + gate (or always-listen clips), WAV"]
     CS["Content script (target tab): DOM scan, snapshot registry, validation, Shadow-DOM pointer"]
     POP["Popup: start/stop, settings, diagnostics"]
   end
@@ -227,7 +228,7 @@ flowchart TD
 
 **Flow for one spoken command:**
 1. The offscreen document plays the Meet audio back (capture mutes the tab otherwise) and runs an energy-based voice-activity detector with an adaptive noise floor.
-2. A clip is sent **~0.6 s after the last loud sound** (measured: 0.56–0.63 s), or every **4 s** during long speech. Each clip holds up to **6 s** of audio, so consecutive clips overlap by 2 s and a sentence crossing a boundary is heard whole. Silence is never sent.
+2. A clip is sent **~0.6 s after the last loud sound** in *Always listen* mode (measured: 0.56–0.63 s) and ~0.7 s in *Trigger word* mode, or every **4 s** during long speech. Each clip holds up to **6 s** of audio, so consecutive clips overlap by 2 s and a sentence crossing a boundary is heard whole. Silence is never sent.
 3. The service worker drops stale work (old session, already-handled sequence, older than 15 s, rate-limited), asks the content script for a fresh **snapshot**, and sends the clip plus a compact element table (`[id, role, name, region, visible]`) to Gemini with a strict response schema.
 4. The answer is validated: unknown ids and unsupported intents are rejected, and confidence is clamped. Then it is combined with the deterministic matcher:
    - A confident validated pick points directly.
@@ -289,7 +290,7 @@ What happens after someone finishes a sentence, and how long each part takes:
 
 | Step | Time | How it is known |
 |---|---|---|
-| Wait to be sure the sentence ended (`END_OF_SPEECH_MS`) | ~0.55–0.63 s | **Measured** in real Chrome with synthesized speech (`test/integration/voice-capture.test.mjs`). It was 1.0–1.2 s before the fix |
+| Wait to be sure the request ended: always-listen `END_OF_SPEECH_MS`, trigger-word `WAKE_END_OF_COMMAND_MS` | ~0.55–0.63 s / ~0.7 s | **Measured** always-listen in real Chrome with synthesized speech (`test/integration/voice-capture.test.mjs`): it was 1.0–1.2 s before the fix. Trigger-word is unit-tested (`test/wakeGate.test.js`): it was ~1.15 s |
 | Upload the clip + read the page | tens of ms | Estimated |
 | Gemini understands the audio and picks the element | **depends on your key and model** | Not measured here. Run the script below |
 
@@ -300,14 +301,14 @@ $env:GEMINI_API_KEY="your-key"; npm run voice:latency
 # macOS / Linux
 GEMINI_API_KEY=your-key npm run voice:latency
 
-# compare models
-npm run voice:latency -- --models gemini-flash-latest,gemini-3.1-flash-lite --runs 5
+# compare models (default: the extension's own model list)
+npm run voice:latency -- --models gemini-3.5-flash-lite,gemini-3.6-flash --runs 5
 
 # check the script itself without a key
 npm run voice:latency -- --dry-run
 ```
 
-The script sends real speech (`test/fixtures/speech-*.wav`) plus a Gmail-sized element list through the extension's own Gemini code and prints median and best times, the real model behind the `-latest` alias, and whether it picked the right button. The key is only read from the environment. Use the fastest model that picks the right button, and enter it under **Settings → Model**.
+It complements `scripts/gemini-check.mjs` (one quick call per model). The script sends real speech (`test/fixtures/speech-*.wav`) plus a Gmail-sized element list through the extension's own Gemini code and prints median and best times, the real model behind the `-latest` alias, and whether it picked the right button. The key is only read from the environment. Use the fastest model that picks the right button, and enter it under **Settings → Model**.
 
 ## Spotlight module
 
@@ -346,7 +347,8 @@ await showSpotlight(elementOrSelector, 'Click the Record button.', {
 | Setting | Default | Notes |
 |---|---|---|
 | Gemini API key | – | Required for voice only. See [Where is the API key stored?](#where-is-the-api-key-stored) |
-| Model | `gemini-flash-latest` | Google's alias for the current Flash model. If the model is not found, an available Flash model is chosen automatically and saved here |
+| Listening mode | Trigger word | *Trigger word*: nothing is sent until someone on the call says "Hey Jarvis"; then only that request is sent. *Always listen*: every sentence is sent. Takes effect the next time listening starts |
+| Model | `gemini-3.5-flash-lite` | Fastest in our measurement (~3 s for a voice request). If it is overloaded or silent for 8 s, `BUSY_FALLBACK_MODELS` are tried. Run `node scripts/gemini-check.mjs` to measure models with your key |
 | Pointer style | Spotlight | Built-in spotlight (default) or *Driver.js highlight*. Driver.js is used for a single target only; multiple candidates always use the spotlight. In Driver.js mode, clicking the dark area closes the highlight |
 
 **Tuning constants** in [src/shared/constants.js](src/shared/constants.js):
@@ -358,14 +360,20 @@ await showSpotlight(elementOrSelector, 'Click the Record button.', {
 | `MIN_SPEECH_MS` | 250 | Shorter sounds (coughs, clicks) are not sent |
 | `MAX_CLIP_AGE_MS` | 15000 | Older clips are dropped as stale |
 | `DEDUPE_WINDOW_MS` | 10000 | The same command within this window is ignored |
-| `GEMINI_TIMEOUT_MS` | 15000 | Per-request timeout |
+| `GEMINI_ATTEMPT_TIMEOUT_MS` / `GEMINI_TIMEOUT_MS` | 8000 / 20000 | Wait per model before trying the next / wait in total |
+| `WAKE_PHRASE` / `WAKE_MODEL_FILE` | "Hey Jarvis" / `hey_jarvis_v0.1.onnx` | Change both together (see [models/wakeword/README.md](models/wakeword/README.md)) |
+| `WAKE_THRESHOLD` | 0.5 | Higher means fewer false alarms but more missed wake phrases |
+| `WAKE_PREROLL_MS` / `WAKE_END_OF_COMMAND_MS` | 2000 / 700 | Audio kept before the wake phrase / pause that ends a request |
+| `WAKE_WAIT_FOR_COMMAND_MS` / `WAKE_MAX_COMMAND_MS` | 5000 / 8000 | Give up with no request / hard limit on audio sent per wake phrase |
 | `MAX_ELEMENTS` / `MAX_SAME_NAME` | 180 / 4 | Prompt size limits |
 | `HIGHLIGHT_TIMEOUT_MS` | 20000 | Pointer lifetime |
 
 ## Privacy and security
 
 - Capture starts only when you press **Start Listening**. A badge and an on-page pill show it is active, and Stop is one click away.
-- While listening, **short clips of the Meet tab's audio** and the **names/roles of visible buttons and links** on your current page are sent to Google's Gemini API. They are subject to your API tier's data-use terms (free-tier data may be used by Google to improve products).
+- **Trigger word mode (default):** the Meet audio is checked on the computer by an on-device model ([openWakeWord](https://github.com/dscripka/openWakeWord) on ONNX Runtime Web). Only the last 2 s are held in memory, and nothing is sent until "Hey Jarvis" is heard. Then **one clip** (the phrase plus the request, at most ~10 s) is sent. A chime and an on-page message show when this happens.
+- **Always listen mode:** **short clips of all speech** in the Meet tab's audio are sent.
+- In both modes, the clip and the **names/roles of visible buttons and links** on your current page are sent to Google's Gemini API. They are subject to your API tier's data-use terms (free-tier data may be used by Google to improve products).
 - Never sent: page HTML, field values, passwords, typed text, message bodies, cookies. Labels are truncated to 60 characters. Note that link text (for example an email subject shown as a link) can appear among the labels.
 - No audio or transcripts are written to disk. The last transcript is kept only in memory (`chrome.storage.session`) for context and is cleared on Stop.
 - Page text is treated as untrusted data: it is JSON-encoded in the prompt, the model's output is schema-validated, and returned ids must be in the submitted list. Nothing the model returns is executed or used as a selector.
@@ -394,6 +402,8 @@ await showSpotlight(elementOrSelector, 'Click the Record button.', {
 - Captured audio is the whole Meet tab playback, including the senior's own voice if Meet echoes it, and any shared media. Gemini decides what is an instruction.
 - Cross-origin iframes, closed shadow roots, canvas UIs and native browser dialogs are not scanned.
 - Elements in the browser's top layer (`<dialog>.showModal()`, fullscreen) can cover the overlay.
+- The trigger word only hears the **Meet tab** (the other person's voice), not this computer's microphone.
+- "Hey Jarvis" is openWakeWord's pre-trained model, licensed **CC BY-NC-SA 4.0 (non-commercial)**. A custom phrase needs a model trained with openWakeWord's notebook ([models/wakeword/README.md](models/wakeword/README.md)).
 
 ## Roadmap
 

@@ -2,14 +2,56 @@
 
 // ---- Gemini (request/response) ----
 /**
- * Default model. `gemini-flash-latest` is Google's alias for the current Flash
- * model, so the extension keeps working when versioned models (e.g. 2.5) retire.
- * Override in the popup. If the model is not found, gemini.js auto-selects an
- * available Flash model via ListModels.
+ * Default model. Measured with scripts/gemini-check.mjs (Oct 2026): flash-lite answered
+ * audio in ~3 s, while the `gemini-flash-latest` alias sometimes never answered at all.
+ * Override in the popup. If a model is not found, gemini.js auto-selects an available
+ * Flash model via ListModels. Check https://ai.google.dev/gemini-api/docs/models when
+ * these retire, and re-run scripts/gemini-check.mjs.
  */
-export const DEFAULT_MODEL = 'gemini-flash-latest';
+export const DEFAULT_MODEL = 'gemini-3.5-flash-lite';
+/**
+ * Tried in order when the chosen model is overloaded (5xx), does not answer within
+ * GEMINI_ATTEMPT_TIMEOUT_MS, or does not exist. The chosen model itself is skipped.
+ */
+export const BUSY_FALLBACK_MODELS = Object.freeze(['gemini-3.5-flash-lite', 'gemini-3.6-flash']);
 export const GEMINI_API_BASE = 'https://generativelanguage.googleapis.com/v1beta';
-export const GEMINI_TIMEOUT_MS = 15000;
+/** Longest wait for ONE model before switching to the next fallback. */
+export const GEMINI_ATTEMPT_TIMEOUT_MS = 8000;
+/** Longest wait for an answer in total, across all models. */
+export const GEMINI_TIMEOUT_MS = 20000;
+
+// ---- Listening modes ----
+/**
+ * WAKE (default): nothing leaves the computer until the wake phrase is heard on-device.
+ * ALWAYS: every utterance on the call is sent to Gemini.
+ */
+export const VOICE_MODES = Object.freeze({ WAKE: 'wake', ALWAYS: 'clips' });
+export const DEFAULT_VOICE_MODE = VOICE_MODES.WAKE;
+
+// ---- Wake word (on-device, openWakeWord models in models/wakeword/) ----
+/** What people should say. Must match WAKE_MODEL_FILE. */
+export const WAKE_PHRASE = 'Hey Jarvis';
+export const WAKE_MODEL_DIR = 'models/wakeword/';
+export const WAKE_MODEL_FILE = 'hey_jarvis_v0.1.onnx';
+export const WAKE_MEL_FILE = 'melspectrogram.onnx';
+export const WAKE_EMBEDDING_FILE = 'embedding_model.onnx';
+/** Score (0..1) at which the wake phrase counts as heard. Higher = fewer false alarms, more misses. */
+export const WAKE_THRESHOLD = 0.5;
+/** Audio kept in memory before the wake phrase is detected (holds the phrase itself). */
+export const WAKE_PREROLL_MS = 2000;
+/** Speech right after detection is the end of the wake phrase, not the command. */
+export const WAKE_GRACE_MS = 300;
+/** Command speech needed after the wake phrase before a pause can end it. */
+export const WAKE_MIN_COMMAND_SPEECH_MS = 300;
+/** Pause that ends the command. */
+// Quiet time after the LAST LOUD sound of a request before it is sent (it used to be 900 ms plus a 250 ms VAD hangover).
+export const WAKE_END_OF_COMMAND_MS = 700;
+/** Give up if no command starts this long after the wake phrase. */
+export const WAKE_WAIT_FOR_COMMAND_MS = 5000;
+/** Hard limit on how much audio is sent after one wake phrase. */
+export const WAKE_MAX_COMMAND_MS = 8000;
+/** Play a short tone when the wake phrase is heard. */
+export const WAKE_CHIME = true;
 
 // ---- Audio ----
 /** Sample rate sent to Gemini (16 kHz mono). */

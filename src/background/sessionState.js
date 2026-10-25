@@ -29,6 +29,7 @@ export const INITIAL_SESSION = Object.freeze({
   generation: 0, // bumps on every start/stop; work from older generations is discarded
   captureTabId: null,
   targetTabId: null,
+  voiceMode: '', // 'wake' | 'clips' for the current session
   lastSeqHandled: -1,
   lastHighlightSeq: -1,
   lastTranscript: '', // in-memory (storage.session) only, cleared on stop

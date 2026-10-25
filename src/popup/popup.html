@@ -77,12 +77,20 @@
 
     <div class="fields">
       <div class="field">
+        <label for="voice-mode">Listening mode</label>
+        <select id="voice-mode">
+          <option value="wake">Trigger word: only after "Hey Jarvis"</option>
+          <option value="clips">Always listen: every sentence is sent</option>
+        </select>
+        <p id="voice-mode-note" class="note"></p>
+      </div>
+      <div class="field">
         <label for="api-key">Gemini API key</label>
         <input id="api-key" type="password" autocomplete="off" spellcheck="false">
       </div>
       <div class="field">
         <label for="model">Model</label>
-        <input id="model" type="text" placeholder="gemini-flash-latest" spellcheck="false">
+        <input id="model" type="text" placeholder="gemini-3.5-flash-lite" spellcheck="false">
       </div>
     </div>
 

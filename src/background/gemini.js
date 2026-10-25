@@ -1,6 +1,8 @@
 // Gemini REST client with structured output, timeouts, model fallback and
 // bounded retries. `fetchImpl` is injectable for unit tests.
-import { DEFAULT_MODEL, GEMINI_API_BASE, GEMINI_TIMEOUT_MS } from '../shared/constants.js';
+import {
+  BUSY_FALLBACK_MODELS, DEFAULT_MODEL, GEMINI_API_BASE, GEMINI_ATTEMPT_TIMEOUT_MS, GEMINI_TIMEOUT_MS
+} from '../shared/constants.js';
 import {
   RESPONSE_SCHEMA, SYSTEM_INSTRUCTION, buildUserPrompt, cleanApiKey, parseModelJson, validateModelResult
 } from './prompt.js';
@@ -9,7 +11,7 @@ export class GeminiError extends Error {
   constructor(message, { status = 0, kind = 'api', retryAfterMs = 0 } = {}) {
     super(message);
     this.status = status;
-    this.kind = kind; // 'auth' | 'rate-limit' | 'timeout' | 'not-found' | 'api' | 'network'
+    this.kind = kind; // 'auth' | 'rate-limit' | 'timeout' | 'not-found' | 'busy' | 'api' | 'network'
     this.retryAfterMs = retryAfterMs;
   }
 }
@@ -91,6 +93,7 @@ function toError(res, data, model) {
     return new GeminiError(`API key rejected: ${msg}`, { status: res.status, kind: 'auth' });
   }
   if (res.status === 404) return new GeminiError(`Model "${model}" not found`, { status: 404, kind: 'not-found' });
+  if (res.status >= 500) return new GeminiError(`Gemini ${res.status}: ${msg}`, { status: res.status, kind: 'busy' });
   return new GeminiError(`Gemini ${res.status}: ${msg}`, { status: res.status, kind: 'api' });
 }
 
@@ -110,11 +113,13 @@ export async function listFlashModel(key, fetchImpl) {
 export async function callGemini(req, opts = {}) {
   const fetchImpl = opts.fetchImpl || fetch;
   const timeoutMs = opts.timeoutMs || GEMINI_TIMEOUT_MS;
+  const attemptTimeoutMs = opts.attemptTimeoutMs || GEMINI_ATTEMPT_TIMEOUT_MS;
   const key = cleanApiKey(req.apiKey);
   if (!key) throw new GeminiError('API key is empty', { kind: 'auth' });
 
   let model = (req.model || '').trim() || DEFAULT_MODEL;
-  let retriedServer = false;
+  // Models to switch to if this one is overloaded (5xx), silent (timeout) or missing; each is tried once.
+  const fallbacks = (opts.fallbackModels || BUSY_FALLBACK_MODELS).filter((m) => m !== model);
   let resolvedModel = false;
   const started = Date.now();
 
@@ -123,7 +128,8 @@ export async function callGemini(req, opts = {}) {
     parts.push({ inlineData: { mimeType: req.input.mimeType || 'audio/wav', data: req.input.audioBase64 } });
   }
 
-  for (let attempt = 0; attempt < 8; attempt++) {
+  // Each attempt is a different model or thinking setting, so this is a ceiling, not a retry count.
+  for (let attempt = 0; attempt < 10; attempt++) {
     const generationConfig = {
       temperature: 0.1,
       maxOutputTokens: 400,
@@ -138,12 +144,26 @@ export async function callGemini(req, opts = {}) {
     const remaining = timeoutMs - (Date.now() - started);
     if (remaining <= 500) throw new GeminiError('Gemini request timed out', { kind: 'timeout' });
 
-    const { res, data } = await postJson(
-      `${GEMINI_API_BASE}/models/${encodeURIComponent(model)}:generateContent`,
-      key,
-      { systemInstruction: { parts: [{ text: SYSTEM_INSTRUCTION }] }, contents: [{ role: 'user', parts }], generationConfig },
-      { fetchImpl, timeoutMs: remaining }
-    );
+    let res;
+    let data;
+    try {
+      ({ res, data } = await postJson(
+        `${GEMINI_API_BASE}/models/${encodeURIComponent(model)}:generateContent`,
+        key,
+        { systemInstruction: { parts: [{ text: SYSTEM_INSTRUCTION }] }, contents: [{ role: 'user', parts }], generationConfig },
+        { fetchImpl, timeoutMs: Math.min(remaining, attemptTimeoutMs) }
+      ));
+    } catch (e) {
+      // A model that never answers sends no error, so a per-model time limit is the only
+      // way to move on (seen with `gemini-flash-latest`: no reply in 60 s).
+      if (e instanceof GeminiError && e.kind === 'timeout' && fallbacks.length) {
+        const next = fallbacks.shift();
+        opts.onFallback?.(next, new GeminiError(`Gemini model "${model}" did not answer in time`, { kind: 'timeout' }));
+        model = next;
+        continue;
+      }
+      throw e;
+    }
 
     if (res.ok) {
       const text = (data.candidates?.[0]?.content?.parts || []).map((p) => p.text || '').join('');
@@ -166,19 +186,26 @@ export async function callGemini(req, opts = {}) {
       thinkingRung.set(model, rung + 1);
       continue;
     }
-    // 2) Model retired / unknown -> pick an available Flash model once.
-    if (err.kind === 'not-found' && !resolvedModel) {
-      resolvedModel = true;
-      const picked = await listFlashModel(key, fetchImpl);
-      if (!picked || picked === model) throw err;
-      model = picked;
-      opts.onModelResolved?.(picked);
+    // 2) Model overloaded ("high demand", 5xx): switch to the next fallback model at once.
+    //    Waiting on the same busy model rarely helps and the person is waiting for the pointer.
+    if (err.kind === 'busy' && fallbacks.length) {
+      model = fallbacks.shift();
+      opts.onFallback?.(model, err);
       continue;
     }
-    // 3) Transient server error -> one quick retry.
-    if (res.status >= 500 && !retriedServer) {
-      retriedServer = true;
-      await new Promise((r) => setTimeout(r, 400));
+    // 3) Model retired / unknown -> pick an available Flash model once (and remember it).
+    if (err.kind === 'not-found' && !resolvedModel) {
+      resolvedModel = true;
+      const picked = await listFlashModel(key, fetchImpl).catch(() => null);
+      if (picked && picked !== model) {
+        model = picked;
+        opts.onModelResolved?.(picked);
+        continue;
+      }
+    }
+    // 4) A fallback model that doesn't exist for this key: try the next one.
+    if (err.kind === 'not-found' && fallbacks.length) {
+      model = fallbacks.shift();
       continue;
     }
     throw err;

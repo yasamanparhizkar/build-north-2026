@@ -1,7 +1,7 @@
 // Pure helpers for the Gemini request/response (no Chrome APIs).
 // Web page text is UNTRUSTED: it is sent only as JSON data, never as instructions,
 // and every field of the model's answer is validated before use.
-import { MAX_NAME_LENGTH } from '../shared/constants.js';
+import { MAX_NAME_LENGTH, WAKE_PHRASE } from '../shared/constants.js';
 
 export const ALLOWED_INTENTS = Object.freeze(['locate_element', 'none']);
 export const REGIONS = Object.freeze([
@@ -58,7 +58,11 @@ export function compactElements(elements) {
  */
 export function buildUserPrompt(input, elements, previousTranscript = '') {
   const said = input.audioBase64
-    ? 'The attached audio is the latest few seconds of the call.'
+    ? input.wake
+      ? `The attached audio starts with the wake phrase "${WAKE_PHRASE}": someone is asking the helper for something. ` +
+        'The request follows the wake phrase. Do not include the wake phrase in target or label. ' +
+        'Set isCommand=false only if no request about the screen follows it.'
+      : 'The attached audio is the latest few seconds of the call.'
     : `Typed command: ${JSON.stringify(String(input.text || '').slice(0, 300))}`;
   const context = previousTranscript
     ? `Earlier (the speaker may be finishing this sentence; do not act on it by itself): ${JSON.stringify(previousTranscript.slice(-200))}`

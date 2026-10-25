@@ -3,15 +3,18 @@
 //
 //   Windows PowerShell:  $env:GEMINI_API_KEY="your-key"; npm run voice:latency
 //   macOS/Linux:         GEMINI_API_KEY=your-key npm run voice:latency
-//   Options:             npm run voice:latency -- --models gemini-flash-latest,gemini-3.1-flash-lite --runs 3
+//   Options:             npm run voice:latency -- --models gemini-3.5-flash-lite,gemini-3.6-flash --runs 3
+//   (see also scripts/gemini-check.mjs: one quick call per model with a status line)
 //   No key / offline:    npm run voice:latency -- --dry-run     (checks the script itself with a fake API)
 //
 // The key is read from the environment only. It is never written anywhere.
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { callGemini, listFlashModel, resetThinkingCache } from '../src/background/gemini.js';
-import { END_OF_SPEECH_MS } from '../src/shared/constants.js';
+import { callGemini, resetThinkingCache } from '../src/background/gemini.js';
+import {
+  BUSY_FALLBACK_MODELS, DEFAULT_MODEL, END_OF_SPEECH_MS, WAKE_END_OF_COMMAND_MS
+} from '../src/shared/constants.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const args = process.argv.slice(2);
@@ -57,12 +60,11 @@ async function pickModels() {
   const given = opt('models', '');
   if (given) return given.split(',').map((s) => s.trim()).filter(Boolean);
   if (dryRun) return ['dry-run-model'];
-  const flash = await listFlashModel(apiKey, fetch).catch(() => null);
-  return [...new Set(['gemini-flash-latest', flash].filter(Boolean))];
+  return [...new Set([DEFAULT_MODEL, ...BUSY_FALLBACK_MODELS])]; // what the extension itself tries, in order
 }
 
 const models = await pickModels();
-console.log(`Elements sent: ${elements.length}   Runs per case: ${runs}   Endpointing wait before upload: ~${END_OF_SPEECH_MS} ms (not included below)\n`);
+console.log(`Elements sent: ${elements.length}   Runs per case: ${runs}   Wait before upload (not included below): ~${END_OF_SPEECH_MS} ms always-listen, ~${WAKE_END_OF_COMMAND_MS} ms trigger-word\n`);
 
 const summary = [];
 for (const model of models) {
@@ -91,7 +93,7 @@ for (const model of models) {
   }
 }
 
-console.log('\n=== Summary (Gemini request only; add ~' + END_OF_SPEECH_MS + ' ms endpointing + a few ms page work) ===');
+console.log('\n=== Summary (Gemini request only; add ~' + WAKE_END_OF_COMMAND_MS + ' ms end-of-command wait + a few ms page work) ===');
 for (const s of summary) {
   console.log(`${s.model}\n   ${s.clip}: median ${s.median} ms, best ${s.min} ms, correct element ${s.ok}/${s.runs}\n   ${s.note}`);
 }

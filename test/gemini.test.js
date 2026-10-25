@@ -117,11 +117,30 @@ test('bad key is classified as auth error', async () => {
   await assert.rejects(callGemini({ apiKey: 'k', input: { text: 'x' }, elements }, { fetchImpl }), (e) => e.kind === 'auth');
 });
 
-test('5xx is retried once, then fails', async () => {
-  let n = 0;
-  const fetchImpl = async () => { n++; return failure(503, 'overloaded'); };
-  await assert.rejects(callGemini({ apiKey: 'k', input: { text: 'x' }, elements }, { fetchImpl }), /503/);
-  assert.equal(n, 2);
+test('busy model (503) -> switches to the fallback models in order, then fails', async () => {
+  const tried = [];
+  const fetchImpl = async (url) => { tried.push(decodeURIComponent(url.split('/models/')[1].split(':')[0])); return failure(503, 'This model is currently experiencing high demand.'); };
+  const err = await callGemini({ apiKey: 'k', model: 'gemini-flash-latest', input: { text: 'x' }, elements }, { fetchImpl }).catch((e) => e);
+  assert.ok(err instanceof GeminiError);
+  assert.equal(err.kind, 'busy');
+  assert.match(err.message, /503/);
+  assert.deepEqual(tried, ['gemini-flash-latest', 'gemini-3.5-flash-lite', 'gemini-3.6-flash']);
+});
+
+test('busy model (503) -> the fallback answers and its name is reported', async () => {
+  const fallbacks = [];
+  const fetchImpl = async (url) => (url.includes('gemini-flash-latest') ? failure(503, 'high demand') : answer(good));
+  const out = await callGemini({ apiKey: 'k', model: 'gemini-flash-latest', input: { text: 'x' }, elements }, { fetchImpl, onFallback: (m) => fallbacks.push(m) });
+  assert.equal(out.model, 'gemini-3.5-flash-lite');
+  assert.equal(out.result.matchedElementId, 'el-1');
+  assert.deepEqual(fallbacks, ['gemini-3.5-flash-lite']);
+});
+
+test('the chosen model is never duplicated in the fallback list', async () => {
+  const tried = [];
+  const fetchImpl = async (url) => { tried.push(url.split('/models/')[1].split(':')[0]); return failure(500, 'internal'); };
+  await callGemini({ apiKey: 'k', model: 'gemini-3.5-flash-lite', input: { text: 'x' }, elements }, { fetchImpl }).catch(() => {});
+  assert.deepEqual(tried, ['gemini-3.5-flash-lite', 'gemini-3.6-flash']);
 });
 
 test('timeout aborts the request', async () => {
@@ -155,4 +174,28 @@ test('thinkingConfigFor / thinkingLadder pick the right knob per generation', ()
   assert.deepEqual(thinkingConfigFor('gemini-3.5-flash'), { thinkingLevel: 'minimal' });
   assert.equal(thinkingConfigFor('gemini-2.0-flash'), null);
   assert.deepEqual(thinkingLadder('gemini-flash-latest').at(-1), null, 'always ends with a safe fallback');
+});
+
+test('a model that never answers is abandoned after the per-model limit and the next one is used', async () => {
+  const tried = [];
+  const fetchImpl = (url, init) => {
+    const model = decodeURIComponent(url.split('/models/')[1].split(':')[0]);
+    tried.push(model);
+    if (model === 'gemini-flash-latest') {
+      // Silent model: only the abort signal ends this request.
+      return new Promise((_, reject) => init.signal.addEventListener('abort', () => reject(Object.assign(new Error('aborted'), { name: 'AbortError' }))));
+    }
+    return Promise.resolve(answer(good));
+  };
+  const t0 = Date.now();
+  const out = await callGemini({ apiKey: 'k', model: 'gemini-flash-latest', input: { text: 'x' }, elements }, { fetchImpl, attemptTimeoutMs: 200, timeoutMs: 5000 });
+  assert.equal(out.model, 'gemini-3.5-flash-lite');
+  assert.deepEqual(tried, ['gemini-flash-latest', 'gemini-3.5-flash-lite']);
+  assert.ok(Date.now() - t0 < 1500, 'did not wait for the total budget');
+});
+
+test('default model is the one measured to answer quickly', async () => {
+  let url = '';
+  await callGemini({ apiKey: 'k', input: { text: 'x' }, elements }, { fetchImpl: async (u) => { url = u; return answer(good); } });
+  assert.match(url, /models\/gemini-3\.5-flash-lite:generateContent/);
 });

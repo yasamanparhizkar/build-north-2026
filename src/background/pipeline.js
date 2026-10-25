@@ -28,7 +28,10 @@ async function askGemini({ input, elements, previousTranscript }) {
   try {
     return await callGemini(
       { apiKey, model, input, elements, previousTranscript },
-      { onModelResolved: (picked) => chrome.storage.local.set({ model: picked }) }
+      {
+        onModelResolved: (picked) => chrome.storage.local.set({ model: picked }),
+        onFallback: (next, err) => console.warn(`[gemini] ${err.message} -> trying ${next}`)
+      }
     );
   } catch (e) {
     await updateMetrics((m) => bump(m, 'apiErrors'));
@@ -50,7 +53,18 @@ async function applyDecision({ decision, job, tabId, snapshot, timings = {}, typ
     if (stale) return { status: `⏭️ Skipped (${stale})` };
   }
 
-  if (decision.kind === 'ignore') return { status: '👂 Not a computer instruction', transcript: decision.transcript };
+  if (decision.kind === 'ignore') {
+    // After a wake phrase the person expects an answer, so say what was heard.
+    if (job?.wake) {
+      const heard = (decision.transcript || '').slice(0, 80);
+      notifyTab(tabId, {
+        action: MSG.STATUS,
+        text: heard ? `🤔 I heard "${heard}", but no request about the screen.` : "🤔 I didn't catch a request. Please try again.",
+        autoHideMs: 6000
+      });
+    }
+    return { status: '👂 Not a computer instruction', transcript: decision.transcript };
+  }
   if (decision.kind === 'no-match' || !decision.ids.length) {
     const what = decision.target ? `"${decision.target}"` : 'that';
     notifyTab(tabId, { action: MSG.STATUS, text: `I couldn't find ${what} on this page.`, autoHideMs: 5000 });
@@ -61,7 +75,8 @@ async function applyDecision({ decision, job, tabId, snapshot, timings = {}, typ
   const targets = decision.ids.map((id) => byId.get(id)).filter(Boolean).map((e) => ({ id: e.id, name: e.name, role: e.role }));
   const key = commandKey(decision.target || decision.transcript, targets[0]?.name);
 
-  if (!typed) {
+  // Overlapping always-on clips can repeat a command; a wake-word request is always deliberate.
+  if (!typed && !job?.wake) {
     const s = await getSession();
     if (isDuplicateCommand(s.recentCommands, key, now)) return { status: '🔁 Duplicate command ignored' };
   }
@@ -103,8 +118,14 @@ async function handleGeminiError(e, tabId) {
     await updateSession({ rateLimitedUntil: until, detail: 'Gemini free-tier limit reached; pausing briefly.' });
     notifyTab(tabId, { action: MSG.STATUS, text: `Helper is resting for ${Math.ceil(e.retryAfterMs / 1000)}s (API limit).`, autoHideMs: 6000 });
   } else if (e instanceof GeminiError && e.kind === 'auth') {
+    notifyTab(tabId, { action: MSG.STATUS, text: '❌ The Gemini API key was rejected. Check Settings in the helper.', autoHideMs: 8000 });
     await stopListening({ status: STATUS.ERROR, detail: e.message });
   } else {
+    // Never fail silently: the person just asked for something and is waiting.
+    const text = e instanceof GeminiError && (e.kind === 'busy' || e.kind === 'timeout' || e.kind === 'network')
+      ? '😕 The AI service is busy or unreachable right now. Please ask again in a moment.'
+      : `⚠️ Sorry, something went wrong: ${String(e.message || e).slice(0, 80)}`;
+    notifyTab(tabId, { action: MSG.STATUS, text, autoHideMs: 7000 });
     await updateSession({ detail: e.message });
   }
   return { status: `❌ ${e.message}` };
@@ -117,6 +138,10 @@ export async function processAudioClip(clip) {
   const stale = staleReason(clip, session, Date.now());
   if (stale) {
     await updateMetrics((m) => bump(m, 'clipsSkipped'));
+    if (clip.wake && stale === 'rate-limited') {
+      const tabId = await findTargetTab(session.captureTabId);
+      notifyTab(tabId, { action: MSG.STATUS, text: '⏳ The helper is resting for a few seconds (API limit). Please ask again soon.', autoHideMs: 6000 });
+    }
     return { status: `⏭️ Skipped (${stale})` };
   }
   await updateSession({ lastSeqHandled: clip.seq, status: STATUS.PROCESSING });
@@ -126,7 +151,7 @@ export async function processAudioClip(clip) {
     tabId = await findTargetTab(session.captureTabId);
     const snapshot = await getSnapshot(tabId);
     const { result, latencyMs } = await askGemini({
-      input: { audioBase64: clip.audioBase64, mimeType: clip.mimeType, durationMs: clip.durationMs },
+      input: { audioBase64: clip.audioBase64, mimeType: clip.mimeType, durationMs: clip.durationMs, wake: clip.wake === true },
       elements: snapshot.elements,
       previousTranscript: session.lastTranscript
     });

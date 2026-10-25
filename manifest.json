@@ -10,6 +10,9 @@
     "service_worker": "src/background/index.js",
     "type": "module"
   },
+  "content_security_policy": {
+    "extension_pages": "script-src 'self' 'wasm-unsafe-eval'; object-src 'self'"
+  },
   "icons": {
     "16": "assets/icon/icon16.png",
     "32": "assets/icon/icon32.png",

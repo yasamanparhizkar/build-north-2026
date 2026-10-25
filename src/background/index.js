@@ -1,14 +1,15 @@
 // Service worker entry point: validates senders and routes messages to modules.
 import { CONTENT_ALLOWED, MSG, OFFSCREEN_ONLY, TARGET_OFFSCREEN } from '../shared/messages.js';
 import {
-  interruptListening, recoverSession, startListening, stopListening, trackActiveTab
+  indicatorMessage, interruptListening, recoverSession, startListening, stopListening, trackActiveTab
 } from './capture.js';
+import { WAKE_PHRASE } from '../shared/constants.js';
 import { summarize } from './metrics.js';
 import { processAudioClip, processText } from './pipeline.js';
 import { LatestJobQueue } from './queue.js';
 import { getSession } from './session.js';
 import { isListeningStatus } from './sessionState.js';
-import { notifyTab } from './tabs.js';
+import { findTargetTab, notifyTab } from './tabs.js';
 
 // Only the newest waiting clip matters; older waiting clips are dropped (2 s overlap covers gaps).
 const audioQueue = new LatestJobQueue((e) => console.warn('[audio job]', e));
@@ -27,6 +28,21 @@ function allowed(kind, action) {
   if (kind === 'content') return CONTENT_ALLOWED.has(action);
   if (OFFSCREEN_ONLY.has(action)) return kind === 'offscreen';
   return kind === 'extension';
+}
+
+const WAKE_STATUS_TEXT = {
+  open: '🎤 I\'m listening… say what to find.',
+  'no-command': `🤔 I didn't hear a request. Say "${WAKE_PHRASE}" and try again.`
+};
+
+/** Wake phrase heard (gate open) or gate closed: show it on the page the senior is looking at. */
+async function onWakeEvent(state, generation) {
+  const s = await getSession();
+  if (generation !== s.generation || !isListeningStatus(s.status)) return;
+  const text = WAKE_STATUS_TEXT[state];
+  if (!text) return;
+  const tabId = await findTargetTab(s.captureTabId);
+  notifyTab(tabId, { action: MSG.STATUS, text, autoHideMs: state === 'open' ? 9000 : 5000 });
 }
 
 async function getState() {
@@ -60,6 +76,9 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     case MSG.AUDIO_CLIP:
       audioQueue.push(() => processAudioClip(msg));
       return;
+    case MSG.WAKE_EVENT:
+      onWakeEvent(msg.state, msg.generation);
+      return;
     case MSG.CAPTURE_ENDED:
     case MSG.CAPTURE_ERROR:
       audioQueue.clear();
@@ -82,7 +101,7 @@ chrome.tabs.onRemoved.addListener(async (tabId) => {
 chrome.tabs.onUpdated.addListener(async (tabId, info) => {
   if (info.status !== 'complete') return;
   const s = await getSession();
-  if (isListeningStatus(s.status)) notifyTab(tabId, { action: MSG.INDICATOR, listening: true });
+  if (isListeningStatus(s.status)) notifyTab(tabId, indicatorMessage(true, s.voiceMode));
 });
 
 recoverSession();
