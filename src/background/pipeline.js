@@ -39,6 +39,12 @@ async function askGemini({ input, elements, previousTranscript }) {
   }
 }
 
+/** Debug line in the service-worker console and in the page's DevTools console. */
+function debugLog(tabId, text) {
+  console.log(`[Senior Helper] ${text}`);
+  if (tabId) notifyTab(tabId, { action: MSG.STATUS, consoleOnly: true, text });
+}
+
 async function getSnapshot(tabId) {
   const snap = await sendToTab(tabId, { action: MSG.GET_ELEMENTS });
   if (!snap || !Array.isArray(snap.elements)) throw new Error('Could not read the page');
@@ -55,6 +61,10 @@ async function applyDecision({ decision, job, tabId, snapshot, timings = {}, typ
 
   if (decision.kind === 'ignore') {
     // After a wake phrase the person expects an answer, so say what was heard.
+    if (job && !job.wake && decision.transcript) {
+      // Always-listen: show what was heard so it's clear the helper is working.
+      notifyTab(tabId, { action: MSG.STATUS, text: `🎧 Heard: "${decision.transcript.slice(0, 80)}"`, autoHideMs: 4000 });
+    }
     if (job?.wake) {
       const heard = (decision.transcript || '').slice(0, 80);
       notifyTab(tabId, {
@@ -113,6 +123,7 @@ async function applyDecision({ decision, job, tabId, snapshot, timings = {}, typ
 }
 
 async function handleGeminiError(e, tabId) {
+  debugLog(tabId, `AI error: ${e.message}`);
   if (e instanceof GeminiError && e.kind === 'rate-limit') {
     const until = Date.now() + e.retryAfterMs;
     await updateSession({ rateLimitedUntil: until, detail: 'Gemini free-tier limit reached; pausing briefly.' });
@@ -149,12 +160,17 @@ export async function processAudioClip(clip) {
   let tabId = null;
   try {
     tabId = await findTargetTab(session.captureTabId);
+    // Tell the person right away that the request was caught (before the AI answers).
+    notifyTab(tabId, { action: MSG.STATUS, text: '🎧 Got it, thinking…', autoHideMs: 8000 });
+    debugLog(tabId, `clip #${clip.seq} sent: ${(clip.durationMs / 1000).toFixed(1)} s of audio (${clip.reason}), waiting for AI…`);
     const snapshot = await getSnapshot(tabId);
-    const { result, latencyMs } = await askGemini({
+    const { result, latencyMs, model, modelVersion } = await askGemini({
       input: { audioBase64: clip.audioBase64, mimeType: clip.mimeType, durationMs: clip.durationMs, wake: clip.wake === true },
       elements: snapshot.elements,
       previousTranscript: session.lastTranscript
     });
+    const sinceSpeechEnd = clip.capturedAt ? Date.now() - clip.capturedAt : null;
+    debugLog(tabId, `heard: "${result.transcript || ''}" | command: ${result.isCommand} | target: ${result.target || '-'} | AI ${latencyMs} ms (${modelVersion || model})${sinceSpeechEnd != null ? ` | ${sinceSpeechEnd} ms since you stopped talking` : ''}`);
     if (result.transcript) {
       await updateSession({ lastTranscript: result.transcript.slice(-200), lastHeard: result.transcript.slice(-120) });
     }

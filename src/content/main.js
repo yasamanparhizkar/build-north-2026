@@ -71,6 +71,8 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       highlightWith(request).then(sendResponse);
       return true; // async response
     case MSG.STATUS:
+      console.log(`[Senior Helper] ${String(request.text || '')}`);
+      if (request.consoleOnly) { sendResponse({ ok: true }); break; }
       showStatus(String(request.text || ''), request.autoHideMs);
       sendResponse({ ok: true });
       break;
