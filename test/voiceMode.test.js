@@ -3,12 +3,13 @@ import assert from 'node:assert/strict';
 import { indicatorMessage, voiceModeFrom } from '../src/background/capture.js';
 import { matchLocal } from '../src/background/matcher.js';
 
-test('voice mode defaults to the wake word; known modes are kept', () => {
-  assert.equal(voiceModeFrom(undefined), 'wake');
-  assert.equal(voiceModeFrom(''), 'wake');
-  assert.equal(voiceModeFrom('bogus'), 'wake');
+test('voice mode defaults to always listen; known modes are kept', () => {
+  assert.equal(voiceModeFrom(undefined), 'clips');
+  assert.equal(voiceModeFrom(''), 'clips');
+  assert.equal(voiceModeFrom('bogus'), 'clips');
+  assert.equal(voiceModeFrom('wake'), 'wake');
   assert.equal(voiceModeFrom('clips'), 'clips');
-  assert.equal(voiceModeFrom('live'), 'wake', 'the removed Live mode falls back to the wake word');
+  assert.equal(voiceModeFrom('live'), 'clips', 'the removed Live mode falls back to the default');
 });
 
 test('the on-page pill tells people what to say in wake mode', () => {

@@ -321,8 +321,8 @@ await showSpotlight(elementOrSelector, 'Click the Record button.', {
 | Setting | Default | Notes |
 |---|---|---|
 | Gemini API key | – | Required for voice only. See [Where is the API key stored?](#where-is-the-api-key-stored) |
-| Listening mode | Trigger word | *Trigger word*: nothing is sent until someone on the call says "Hey Jarvis"; then only that request is sent. *Always listen*: every sentence is sent. Takes effect the next time listening starts |
-| Model | `gemini-3.5-flash-lite` | Fastest in our measurement (~3 s for a voice request). If it is overloaded or silent for 8 s, `BUSY_FALLBACK_MODELS` are tried. Run `node scripts/gemini-check.mjs` to measure models with your key |
+| Listening mode | Always listen | *Trigger word*: nothing is sent until someone on the call says "Hey Jarvis"; then only that request is sent. *Always listen*: every sentence is sent. Takes effect the next time listening starts |
+| Model | `gemini-flash-lite-latest` | Fastest in our measurement (~3 s for a voice request). If it is overloaded or silent for 8 s, `BUSY_FALLBACK_MODELS` are tried. Run `node scripts/gemini-check.mjs` to measure models with your key |
 | Pointer style | Spotlight | Built-in spotlight (default) or *Driver.js highlight*. Driver.js is used for a single target only; multiple candidates always use the spotlight. In Driver.js mode, clicking the dark area closes the highlight |
 
 **Tuning constants** in [src/shared/constants.js](src/shared/constants.js):
@@ -345,8 +345,8 @@ await showSpotlight(elementOrSelector, 'Click the Record button.', {
 ## Privacy and security
 
 - Capture starts only when you press **Start Listening**. A badge and an on-page pill show it is active, and Stop is one click away.
-- **Trigger word mode (default):** the Meet audio is checked on the computer by an on-device model ([openWakeWord](https://github.com/dscripka/openWakeWord) on ONNX Runtime Web). Only the last 2 s are held in memory, and nothing is sent until "Hey Jarvis" is heard. Then **one clip** (the phrase plus the request, at most ~10 s) is sent. A chime and an on-page message show when this happens.
-- **Always listen mode:** **short clips of all speech** in the Meet tab's audio are sent.
+- **Trigger word mode:** the Meet audio is checked on the computer by an on-device model ([openWakeWord](https://github.com/dscripka/openWakeWord) on ONNX Runtime Web). Only the last 2 s are held in memory, and nothing is sent until "Hey Jarvis" is heard. Then **one clip** (the phrase plus the request, at most ~10 s) is sent. A chime and an on-page message show when this happens.
+- **Always listen mode (default):** **short clips of all speech** in the Meet tab's audio are sent.
 - In both modes, the clip and the **names/roles of visible buttons and links** on your current page are sent to Google's Gemini API. They are subject to your API tier's data-use terms (free-tier data may be used by Google to improve products).
 - Never sent: page HTML, field values, passwords, typed text, message bodies, cookies. Labels are truncated to 60 characters. Note that link text (for example an email subject shown as a link) can appear among the labels.
 - No audio or transcripts are written to disk. The last transcript is kept only in memory (`chrome.storage.session`) for context and is cleared on Stop.

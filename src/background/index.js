@@ -31,8 +31,8 @@ function allowed(kind, action) {
 }
 
 const WAKE_STATUS_TEXT = {
-  open: '🎤 I\'m listening… say what to find.',
-  'no-command': `🤔 I didn't hear a request. Say "${WAKE_PHRASE}" and try again.`
+  open: 'I\'m listening… say what to find.',
+  'no-command': `I didn't hear a request. Say "${WAKE_PHRASE}" and try again.`
 };
 
 /** Wake phrase heard (gate open) or gate closed: show it on the page the senior is looking at. */
@@ -59,7 +59,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   }
 
   const reply = (promise) => {
-    promise.then(sendResponse).catch((e) => sendResponse({ ok: false, error: e.message, status: `❌ ${e.message}` }));
+    promise.then(sendResponse).catch((e) => sendResponse({ ok: false, error: e.message, status: `Error: ${e.message}` }));
     return true;
   };
 

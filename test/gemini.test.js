@@ -163,8 +163,8 @@ test('a model that never answers is abandoned after the per-model limit and the 
   assert.ok(Date.now() - t0 < 1500, 'did not wait for the total budget');
 });
 
-test('default model is the one measured to answer quickly', async () => {
+test('default model is gemini-flash-lite-latest', async () => {
   let url = '';
   await callGemini({ apiKey: 'k', input: { text: 'x' }, elements }, { fetchImpl: async (u) => { url = u; return answer(good); } });
-  assert.match(url, /models\/gemini-3\.5-flash-lite:generateContent/);
+  assert.match(url, /models\/gemini-flash-lite-latest:generateContent/);
 });
