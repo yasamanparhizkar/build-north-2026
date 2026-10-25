@@ -8,7 +8,7 @@
  * Flash model via ListModels. Check https://ai.google.dev/gemini-api/docs/models when
  * these retire, and re-run scripts/gemini-check.mjs.
  */
-export const DEFAULT_MODEL = 'gemini-3.5-flash-lite';
+export const DEFAULT_MODEL = 'gemini-flash-lite-latest';
 /**
  * Tried in order when the chosen model is overloaded (5xx), does not answer within
  * GEMINI_ATTEMPT_TIMEOUT_MS, or does not exist. The chosen model itself is skipped.
@@ -22,11 +22,11 @@ export const GEMINI_TIMEOUT_MS = 20000;
 
 // ---- Listening modes ----
 /**
- * WAKE (default): nothing leaves the computer until the wake phrase is heard on-device.
- * ALWAYS: every utterance on the call is sent to Gemini.
+ * WAKE: nothing leaves the computer until the wake phrase is heard on-device.
+ * ALWAYS (default): every utterance on the call is sent to Gemini.
  */
 export const VOICE_MODES = Object.freeze({ WAKE: 'wake', ALWAYS: 'clips' });
-export const DEFAULT_VOICE_MODE = VOICE_MODES.WAKE;
+export const DEFAULT_VOICE_MODE = VOICE_MODES.ALWAYS;
 
 // ---- Wake word (on-device, openWakeWord models in models/wakeword/) ----
 /** What people should say. Must match WAKE_MODEL_FILE. */

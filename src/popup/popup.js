@@ -29,8 +29,8 @@ const PRIVACY_TEXT = {
   [VOICE_MODES.ALWAYS]: 'While listening, your Meet audio is shared with Google Gemini.'
 };
 const MODE_NOTE = {
-  [VOICE_MODES.WAKE]: `The call is checked on this computer for "${WAKE_PHRASE}". Only the request after it is sent.`,
-  [VOICE_MODES.ALWAYS]: 'Every sentence on the call is sent to Gemini. More natural, but uses more of your API quota.'
+  [VOICE_MODES.WAKE]: 'Less credit usage, more secure.',
+  [VOICE_MODES.ALWAYS]: 'More credit usage, less security.'
 };
 const validMode = (m) => (Object.values(VOICE_MODES).includes(m) ? m : DEFAULT_VOICE_MODE);
 
@@ -55,8 +55,8 @@ function show(name) {
 function resultMessage(res) {
   if (res?.ok === false) return res.error || "Couldn't reach the page. Please try again.";
   const status = res?.status || '';
-  if (status.startsWith('❌')) return status.replace(/^❌\s*/, '');
-  if (status.startsWith('✅') || status.includes('Duplicate') || status.includes('Skipped')) return '';
+  if (status.startsWith('Error: ')) return status.slice('Error: '.length);
+  if (status.startsWith('Pointing to') || status.includes('Duplicate') || status.includes('Skipped')) return '';
   return "Couldn't find that on this page.";
 }
 

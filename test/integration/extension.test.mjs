@@ -128,7 +128,7 @@ test('privacy: typed values, passwords and message bodies are never collected', 
 
 test('typed command highlights the right element (offline, no API key)', async () => {
   const res = await command(tabId, 'click the compose button');
-  assert.match(res.status, /✅/);
+  assert.match(res.status, /Pointing to/);
   assert.ok(near(res.highlight.rects[0], await rectOf(page, "document.getElementById('compose')")));
   assert.ok(await page.evaluate(() => !!document.getElementById('senior-helper-root')), 'overlay host present');
   await page.screenshot({ path: path.join(SHOTS, 'fixture-compose.png') });
@@ -136,7 +136,7 @@ test('typed command highlights the right element (offline, no API key)', async (
 
 test('icon-only control found by aria-label (synonym "gear")', async () => {
   const res = await command(tabId, 'click the gear');
-  assert.match(res.status, /✅/);
+  assert.match(res.status, /Pointing to/);
   assert.ok(near(res.highlight.rects[0], await rectOf(page, "document.getElementById('settings')")));
 });
 
@@ -147,7 +147,7 @@ test('spatial hint picks the right one of two identical buttons', async () => {
 
 test('ambiguous command shows a short candidate set instead of guessing', async () => {
   const res = await command(tabId, 'click record');
-  assert.match(res.status, /✅/);
+  assert.match(res.status, /Pointing to/);
   assert.equal(res.highlight.count, 2);
   await page.screenshot({ path: path.join(SHOTS, 'fixture-ambiguous.png') });
 });
@@ -171,7 +171,7 @@ test('same-origin iframe element gets top-level coordinates', async () => {
 test('off-screen element is scrolled into view', async () => {
   await page.evaluate(() => window.scrollTo(0, 0));
   const res = await command(tabId, 'contact us');
-  assert.match(res.status, /✅/);
+  assert.match(res.status, /Pointing to/);
   await new Promise((r) => setTimeout(r, 800));
   assert.ok(await page.evaluate(() => window.scrollY > 500));
   await page.evaluate(() => window.scrollTo(0, 0));
@@ -351,7 +351,7 @@ test('popup: main view shows only the listening switch; the mode lives in Settin
   const errors = [];
   popup.on('pageerror', (e) => errors.push(e.message));
   await popup.goto(`chrome-extension://${id}/src/popup/popup.html`);
-  await popup.waitForFunction(() => document.getElementById('voice-mode').value === 'wake');
+  await popup.waitForFunction(() => document.getElementById('voice-mode').value === 'clips');
   const view = await popup.evaluate(() => ({
     mainControls: [...document.querySelectorAll('#main-view button, #main-view select, #main-view input')].map((e) => e.id),
     settingsHidden: document.getElementById('settings-view').hidden,
@@ -359,17 +359,17 @@ test('popup: main view shows only the listening switch; the mode lives in Settin
   }));
   assert.deepEqual(view.mainControls, ['listen-switch', 'open-settings']);
   assert.equal(view.settingsHidden, true);
-  assert.match(view.privacy, /Nothing is shared until someone says "Hey Jarvis"/);
+  assert.match(view.privacy, /your Meet audio is shared/);
   await popup.evaluate(() => {
     document.getElementById('open-settings').click();
     const sel = document.getElementById('voice-mode');
-    sel.value = 'clips';
+    sel.value = 'wake';
     sel.dispatchEvent(new Event('change'));
     document.getElementById('save').click();
   });
   await new Promise((r) => setTimeout(r, 300));
-  assert.equal(await sw(async () => (await chrome.storage.local.get('voiceMode')).voiceMode), 'clips');
-  assert.match(await popup.evaluate(() => document.getElementById('privacy-note').textContent), /your Meet audio is shared/);
+  assert.equal(await sw(async () => (await chrome.storage.local.get('voiceMode')).voiceMode), 'wake');
+  assert.match(await popup.evaluate(() => document.getElementById('privacy-note').textContent), /Nothing is shared until someone says "Hey Jarvis"/);
   await sw(() => chrome.storage.local.remove('voiceMode'));
   assert.deepEqual(errors, []);
   await popup.close();
@@ -489,7 +489,7 @@ test('voice pipeline: command clip -> pointer; overlapping repeat is deduplicate
   await installFakeGemini({ transcript: 'Mom, click the Compose button', isCommand: true, target: 'Compose' });
   const g = await fakeListening(tabId);
   const first = await clip(g, 0);
-  assert.match(first.status, /✅ Pointing to: Click Compose/);
+  assert.match(first.status, /Pointing to: Click Compose/);
   assert.ok(near(first.highlight.rects[0], await rectOf(page, "document.getElementById('compose')")));
   const overlap = await clip(g, 1);
   assert.match(overlap.status, /Duplicate/);
@@ -505,8 +505,8 @@ test('voice pipeline: a repeated wake-word request is pointed at again (not dedu
   const wakeClip = (seq) => sw((gen, sq) => globalThis.__seniorHelperTest.processAudioClip({
     generation: gen, seq: sq, audioBase64: 'UklGRg==', mimeType: 'audio/wav', capturedAt: Date.now(), durationMs: 3000, wake: true
   }), g, seq);
-  assert.match((await wakeClip(0)).status, /✅ Pointing to: Click Compose/);
-  assert.match((await wakeClip(1)).status, /✅ Pointing to: Click Compose/);
+  assert.match((await wakeClip(0)).status, /Pointing to: Click Compose/);
+  assert.match((await wakeClip(1)).status, /Pointing to: Click Compose/);
 });
 
 test('voice pipeline: an overloaded model (503) falls back to another model and still points', async () => {
@@ -515,7 +515,7 @@ test('voice pipeline: an overloaded model (503) falls back to another model and 
   const res = await sw((gen) => globalThis.__seniorHelperTest.processAudioClip({
     generation: gen, seq: 0, audioBase64: 'UklGRg==', mimeType: 'audio/wav', capturedAt: Date.now(), durationMs: 3000, wake: true
   }), g);
-  assert.match(res.status, /✅ Pointing to: Click Compose/);
+  assert.match(res.status, /Pointing to: Click Compose/);
   assert.deepEqual(await sw(() => globalThis.__fakeModels), ['gemini-2.5-flash', 'gemini-3.5-flash-lite']);
 });
 
@@ -525,7 +525,7 @@ test('voice pipeline: when every model is overloaded the request fails with a cl
   const res = await sw((gen) => globalThis.__seniorHelperTest.processAudioClip({
     generation: gen, seq: 0, audioBase64: 'UklGRg==', mimeType: 'audio/wav', capturedAt: Date.now(), durationMs: 3000, wake: true
   }), g);
-  assert.match(res.status, /❌ Gemini 503/);
+  assert.match(res.status, /Error: Gemini 503/);
   assert.equal(await sw(() => globalThis.__fakeCalls), 3, 'chosen model + 2 fallbacks, no endless retries');
   const state = await sw(() => globalThis.__seniorHelperTest.getState());
   assert.equal(state.status, 'listening', 'keeps listening for the next request');
@@ -587,7 +587,7 @@ async function realSite(t, url, cmd, expectName, shot) {
   const t0 = Date.now();
   const res = await command(id, cmd);
   console.log(`  "${cmd}" -> ${res.status} (${Date.now() - t0} ms end-to-end, offline)`);
-  assert.match(res.status, /✅/);
+  assert.match(res.status, /Pointing to/);
   assert.match(res.status, expectName);
   await p.screenshot({ path: path.join(SHOTS, shot) });
   assert.equal(await p.evaluate(() => document.querySelectorAll('#senior-helper-root').length), 1);

@@ -95,7 +95,7 @@ test('spotlight: target stays at normal brightness while the page is darkened', 
   const baseFar = base.at(...FAR);
 
   const res = await command('click the compose button');
-  assert.match(res.status, /✅/);
+  assert.match(res.status, /Pointing to/);
   await sleep(FADE_MS);
   const img = await shot('spotlight-single.png');
 
@@ -308,7 +308,7 @@ test('driver.js mode: target lit, page dark, floating text (no Driver.js popover
   await setStyle('driver');
   const compose = await rectOf('#compose');
   const res = await command('click the compose button');
-  assert.match(res.status, /✅/);
+  assert.match(res.status, /Pointing to/);
   assert.equal(res.highlight.renderer, 'driver');
   await sleep(900); // Driver.js animation
   const img = await shot('driver-single.png');
@@ -395,7 +395,7 @@ test('spotlight on a real site: Wikipedia search box is lit, page is dark', asyn
     res = await sw((tid) => globalThis.__seniorHelperTest.processText('click in the search box', { tabId: tid }), id).catch(() => null);
     if (!res?.highlight) await sleep(200);
   }
-  assert.match(res.status, /✅/);
+  assert.match(res.status, /Pointing to/);
   await sleep(FADE_MS);
   const img = decodePng(await p.screenshot({ path: path.join(SHOTS, 'spotlight-wikipedia.png') }));
   const box = res.highlight.rects[0];

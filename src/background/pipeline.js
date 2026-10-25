@@ -50,7 +50,7 @@ async function applyDecision({ decision, job, tabId, snapshot, timings = {}, typ
   const now = Date.now();
   if (job) {
     const stale = resultStaleReason(job, await getSession());
-    if (stale) return { status: `⏭️ Skipped (${stale})` };
+    if (stale) return { status: `Skipped (${stale})` };
   }
 
   if (decision.kind === 'ignore') {
@@ -59,16 +59,16 @@ async function applyDecision({ decision, job, tabId, snapshot, timings = {}, typ
       const heard = (decision.transcript || '').slice(0, 80);
       notifyTab(tabId, {
         action: MSG.STATUS,
-        text: heard ? `🤔 I heard "${heard}", but no request about the screen.` : "🤔 I didn't catch a request. Please try again.",
+        text: heard ? `I heard "${heard}", but no request about the screen.` : "I didn't catch a request. Please try again.",
         autoHideMs: 6000
       });
     }
-    return { status: '👂 Not a computer instruction', transcript: decision.transcript };
+    return { status: 'Not a computer instruction', transcript: decision.transcript };
   }
   if (decision.kind === 'no-match' || !decision.ids.length) {
     const what = decision.target ? `"${decision.target}"` : 'that';
     notifyTab(tabId, { action: MSG.STATUS, text: `I couldn't find ${what} on this page.`, autoHideMs: 5000 });
-    return { status: `🤷 No matching button found for ${what}`, transcript: decision.transcript };
+    return { status: `No matching button found for ${what}`, transcript: decision.transcript };
   }
 
   const byId = new Map(snapshot.elements.map((e) => [e.id, e]));
@@ -78,7 +78,7 @@ async function applyDecision({ decision, job, tabId, snapshot, timings = {}, typ
   // Overlapping always-on clips can repeat a command; a wake-word request is always deliberate.
   if (!typed && !job?.wake) {
     const s = await getSession();
-    if (isDuplicateCommand(s.recentCommands, key, now)) return { status: '🔁 Duplicate command ignored' };
+    if (isDuplicateCommand(s.recentCommands, key, now)) return { status: 'Duplicate command ignored' };
   }
 
   const t0 = Date.now();
@@ -92,7 +92,7 @@ async function applyDecision({ decision, job, tabId, snapshot, timings = {}, typ
 
   if (!res?.ok) {
     notifyTab(tabId, { action: MSG.STATUS, text: 'The page changed. Please say it again.', autoHideMs: 5000 });
-    return { status: `⚠️ Could not point: ${res?.reason || 'unknown'}` };
+    return { status: `Could not point: ${res?.reason || 'unknown'}` };
   }
 
   await updateSession((s) => ({
@@ -106,7 +106,7 @@ async function applyDecision({ decision, job, tabId, snapshot, timings = {}, typ
   }));
 
   return {
-    status: `✅ Pointing to: ${ambiguous ? targets.map((t) => t.name).join(' / ') : label} (${decision.source})`,
+    status: `Pointing to: ${ambiguous ? targets.map((t) => t.name).join(' / ') : label} (${decision.source})`,
     transcript: decision.transcript,
     highlight: res
   };
@@ -118,17 +118,17 @@ async function handleGeminiError(e, tabId) {
     await updateSession({ rateLimitedUntil: until, detail: 'Gemini free-tier limit reached; pausing briefly.' });
     notifyTab(tabId, { action: MSG.STATUS, text: `Helper is resting for ${Math.ceil(e.retryAfterMs / 1000)}s (API limit).`, autoHideMs: 6000 });
   } else if (e instanceof GeminiError && e.kind === 'auth') {
-    notifyTab(tabId, { action: MSG.STATUS, text: '❌ The Gemini API key was rejected. Check Settings in the helper.', autoHideMs: 8000 });
+    notifyTab(tabId, { action: MSG.STATUS, text: 'The Gemini API key was rejected. Check Settings in the helper.', autoHideMs: 8000 });
     await stopListening({ status: STATUS.ERROR, detail: e.message });
   } else {
     // Never fail silently: the person just asked for something and is waiting.
     const text = e instanceof GeminiError && (e.kind === 'busy' || e.kind === 'timeout' || e.kind === 'network')
-      ? '😕 The AI service is busy or unreachable right now. Please ask again in a moment.'
-      : `⚠️ Sorry, something went wrong: ${String(e.message || e).slice(0, 80)}`;
+      ? 'The AI service is busy or unreachable right now. Please ask again in a moment.'
+      : `Sorry, something went wrong: ${String(e.message || e).slice(0, 80)}`;
     notifyTab(tabId, { action: MSG.STATUS, text, autoHideMs: 7000 });
     await updateSession({ detail: e.message });
   }
-  return { status: `❌ ${e.message}` };
+  return { status: `Error: ${e.message}` };
 }
 
 /** Clip-mode audio from the offscreen document. */
@@ -140,9 +140,9 @@ export async function processAudioClip(clip) {
     await updateMetrics((m) => bump(m, 'clipsSkipped'));
     if (clip.wake && stale === 'rate-limited') {
       const tabId = await findTargetTab(session.captureTabId);
-      notifyTab(tabId, { action: MSG.STATUS, text: '⏳ The helper is resting for a few seconds (API limit). Please ask again soon.', autoHideMs: 6000 });
+      notifyTab(tabId, { action: MSG.STATUS, text: 'The helper is resting for a few seconds (API limit). Please ask again soon.', autoHideMs: 6000 });
     }
-    return { status: `⏭️ Skipped (${stale})` };
+    return { status: `Skipped (${stale})` };
   }
   await updateSession({ lastSeqHandled: clip.seq, status: STATUS.PROCESSING });
 
