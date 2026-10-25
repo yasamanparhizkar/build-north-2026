@@ -16,6 +16,9 @@ import { ClipSegmenter } from './segmenter.js';
 import { WakeGate } from './wakeGate.js';
 import { loadWakeDetector, playChime } from './wakeEngine.js';
 
+/** Live counters for debugging: inspect `__seniorHelperAudio` in the offscreen document's DevTools. */
+const debug = (globalThis.__seniorHelperAudio = { frames: 0, loudFrames: 0, clipsSent: 0, mode: null, lastError: null });
+
 let state = null; // { generation, graph, audioCtx, seq, segmenter | gate + wake }
 
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
@@ -23,7 +26,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   if (msg.action === MSG.START_CAPTURE) {
     startCapture(msg)
       .then(() => sendResponse({ ok: true }))
-      .catch((e) => { stopCapture(); sendResponse({ ok: false, error: e.message }); });
+      .catch((e) => { debug.lastError = e.message; console.warn('[Senior Helper] capture failed', e); stopCapture(); sendResponse({ ok: false, error: e.message }); });
     return true;
   }
   if (msg.action === MSG.STOP_CAPTURE) {
@@ -38,6 +41,8 @@ function send(msg) {
 
 function sendClip(clip, generation) {
   if (!state) return;
+  debug.clipsSent++;
+  console.log(`[Senior Helper] clip ready: ${clip.durationMs} ms (${clip.reason})`);
   send({
     action: MSG.AUDIO_CLIP,
     generation,
@@ -64,6 +69,7 @@ async function startCapture({ streamId, generation, mode = VOICE_MODES.WAKE }) {
   const mine = { generation, graph: null, audioCtx: null, seq: 0, wake: null, gate: null, segmenter: null };
   state = mine;
 
+  debug.mode = mode;
   let onSamples;
   if (mode === VOICE_MODES.WAKE) {
     mine.wake = wake;
@@ -98,6 +104,14 @@ async function startCapture({ streamId, generation, mode = VOICE_MODES.WAKE }) {
     onSamples = (samples, now) => mine.segmenter?.push(samples, now);
   }
 
+  const handle = onSamples;
+  onSamples = (samples, now) => {
+    debug.frames++;
+    let s = 0;
+    for (let i = 0; i < samples.length; i += 8) s += samples[i] * samples[i];
+    if (Math.sqrt(s / (samples.length / 8)) > 0.01) debug.loudFrames++;
+    handle(samples, now);
+  };
   try {
     mine.graph = await startAudioGraph(mediaStream, {
       onSamples,

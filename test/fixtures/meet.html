@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Fake Meet call</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 0; background: #202124; color: #fff; }
+    header { display: flex; gap: 12px; padding: 16px; }
+    button { padding: 12px 18px; border-radius: 20px; border: 0; font-size: 15px; }
+    #compose { background: #c2e7ff; }
+    .bar { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); display: flex; gap: 12px; }
+  </style>
+</head>
+<body>
+  <header>
+    <button id="compose">Compose</button>
+    <button id="inbox">Inbox</button>
+  </header>
+  <div class="bar">
+    <button id="mic" aria-label="Turn off microphone">🎤</button>
+    <button id="cam" aria-label="Turn off camera">📷</button>
+    <button id="leave" aria-label="Leave call">Leave</button>
+  </div>
+  <!-- Plays like a remote participant's voice coming out of the Meet tab. -->
+  <audio id="voice"></audio>
+  <script>
+    window.__clicks = 0;
+    document.addEventListener('click', () => { window.__clicks++; }, true);
+    window.playVoice = (src) => new Promise((resolve) => {
+      const a = document.getElementById('voice');
+      a.src = src;
+      a.onended = () => resolve(a.duration);
+      a.play();
+    });
+  </script>
+</body>
+</html>
+

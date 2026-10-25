@@ -78,8 +78,8 @@ npm run test:integration   # loads the real extension in Chrome for Testing, abo
 ```
 `npm run test:integration` ends with:
 ```
-# tests 56
-# pass 56
+# tests 58
+# pass 58
 # fail 0
 ```
 It also prints lines like:

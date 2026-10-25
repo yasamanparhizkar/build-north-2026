@@ -107,4 +107,4 @@ chrome.tabs.onUpdated.addListener(async (tabId, info) => {
 recoverSession();
 
 // Test hook for browser integration tests (service-worker scope only; pages cannot reach it).
-globalThis.__seniorHelperTest = { processText, processAudioClip, stopListening, getState };
+globalThis.__seniorHelperTest = { processText, processAudioClip, startListening, stopListening, getState };

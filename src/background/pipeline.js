@@ -105,6 +105,9 @@ async function applyDecision({ decision, job, tabId, snapshot, timings = {}, typ
     return { status: `⚠️ Could not point: ${res?.reason || 'unknown'}` };
   }
 
+  // Replace "Got it, thinking…" with the result.
+  if (job) notifyTab(tabId, { action: MSG.STATUS, text: `✅ ${ambiguous ? 'Is it one of these?' : label}`, autoHideMs: 2500 });
+
   await updateSession((s) => ({
     recentCommands: rememberCommand(s.recentCommands, key, now),
     lastHighlightSeq: typeof job?.seq === 'number' ? job.seq : s.lastHighlightSeq
