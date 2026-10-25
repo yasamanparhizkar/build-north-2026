@@ -1,4 +1,4 @@
-# Senior Helper Pointer
+# Ollie
 
 A Chrome extension (Manifest V3) that helps an older adult find things on a web page while a family member guides them over **Google Meet**. When the family member says *"Mom, click the Compose button on the left"*, a large pointer appears on that button on Mom's screen.
 
