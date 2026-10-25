@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Speech-to-text manual test</title>
+  <style>
+    body { font-family: system-ui, sans-serif; max-width: 40rem; margin: 2rem auto; padding: 0 1rem; }
+    p { color: #555; }
+  </style>
+</head>
+<body>
+  <h1>Speech-to-text manual test</h1>
+  <p>Allow the microphone when Chrome asks. Speak, then open DevTools (Cmd+Option+J) and watch the <strong>Console</strong> for <code>Final:</code> and <code>Live Typing:</code>.</p>
+  <script>
+    // Diagnostics only: logs every recognition event so silent failures show up.
+    // Runs before speech-to-text.js, which then picks up the wrapped constructor.
+    const Native = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (Native) {
+      window.SpeechRecognition = class extends Native {
+        constructor() {
+          super();
+          ['start', 'audiostart', 'soundstart', 'speechstart', 'speechend', 'nomatch', 'error', 'end']
+            .forEach((name) => this.addEventListener(name, (e) => console.log('[event]', name, e.error || '')));
+        }
+      };
+    }
+  </script>
+  <script src="speech-to-text.js"></script>
+</body>
+</html>
