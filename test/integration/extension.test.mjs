@@ -357,7 +357,7 @@ test('popup: main view shows only the listening switch; the mode lives in Settin
     settingsHidden: document.getElementById('settings-view').hidden,
     privacy: document.getElementById('privacy-note').textContent
   }));
-  assert.deepEqual(view.mainControls, ['listen-switch', 'open-settings']);
+  assert.deepEqual(view.mainControls, ['listen-switch', 'open-text', 'open-settings']);
   assert.equal(view.settingsHidden, true);
   assert.match(view.privacy, /your Meet audio is shared/);
   await popup.evaluate(() => {

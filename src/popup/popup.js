@@ -125,8 +125,6 @@ function showModeText(mode) {
 }
 voiceModeSelect.addEventListener('change', () => showModeText(voiceModeSelect.value));
 
-$('open-settings').addEventListener('click', () => showView(true));
-$('back').addEventListener('click', () => showView(false));
 $('open-settings').addEventListener('click', () => show('settings'));
 $('open-settings-from-text').addEventListener('click', () => show('settings'));
 $('open-text').addEventListener('click', () => show('text'));
