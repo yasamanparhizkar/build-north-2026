@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Ollie Privacy Policy</title>
+  <meta name="description" content="What the Ollie Chrome extension does with your data.">
+  <style>
+    :root {
+      --bg: #fbfaf7;
+      --text: #1d1d1b;
+      --muted: #5b5b57;
+      --accent: #8a4b00;
+      --rule: #e4e1d8;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root:not([data-theme="light"]) {
+        --bg: #161614;
+        --text: #f1efe9;
+        --muted: #b7b4ab;
+        --accent: #f0b35a;
+        --rule: #3a3935;
+      }
+    }
+    :root[data-theme="dark"] {
+      --bg: #161614;
+      --text: #f1efe9;
+      --muted: #b7b4ab;
+      --accent: #f0b35a;
+      --rule: #3a3935;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font: 17px/1.6 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    }
+    main {
+      max-width: 760px;
+      margin: 0 auto;
+      padding: 40px 16px 64px;
+    }
+    h1 { font-size: 2rem; line-height: 1.2; margin: 0 0 8px; }
+    h2 { font-size: 1.25rem; margin: 40px 0 8px; padding-top: 24px; border-top: 1px solid var(--rule); }
+    p, li { margin: 0 0 12px; }
+    ul { padding-left: 22px; margin: 0 0 12px; }
+    a { color: var(--accent); }
+    .meta { color: var(--muted); margin: 0 0 24px; }
+    .summary {
+      border: 1px solid var(--rule);
+      border-radius: 10px;
+      padding: 16px 18px;
+      margin: 24px 0 8px;
+    }
+    .summary p:last-child { margin-bottom: 0; }
+    code { font-size: 0.95em; }
+    @media (max-width: 480px) {
+      h1 { font-size: 1.6rem; }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Ollie Privacy Policy</h1>
+    <p class="meta">Last updated: 7 November 2026</p>
+
+    <p>Ollie is a Chrome extension that points to on-page buttons and links while a family member guides a person through a web page, including during a Google Meet call. This policy explains what data Ollie handles.</p>
+
+    <section class="summary" aria-label="Summary">
+      <p><strong>In short:</strong> Ollie has no server and no database, and the developer never receives your data. Your data stays in your browser, except what is sent to Google's Gemini API when you use voice commands.</p>
+    </section>
+
+    <h2>Who we are</h2>
+    <p>Ollie is developed by Yasaman Parhizkar. Contact: <a href="mailto:yasaman.parhizkar@gmail.com">yasaman.parhizkar@gmail.com</a>.</p>
+
+    <h2>Data kept on your computer</h2>
+    <ul>
+      <li>Settings and your Gemini API key, saved in your browser's local extension storage.</li>
+      <li>The most recent transcript and the current session state, kept in memory only and cleared when you press Stop.</li>
+      <li>Short audio clips, kept in memory only. No audio or transcripts are written to disk.</li>
+      <li>If "Name unlabeled buttons from their pictures" is on, small pictures of unlabeled buttons, cached on your computer per site.</li>
+    </ul>
+
+    <h2>Data sent to Google (Gemini API)</h2>
+    <p>Ollie sends the following to Google's Gemini API:</p>
+    <ul>
+      <li><strong>Voice commands:</strong> short clips of the Google Meet call's audio. In "Always listen" mode, clips of all speech on the call are sent. In "Trigger word" mode, nothing is sent until the phrase "Hey Jarvis" is heard, and then only that request is sent.</li>
+      <li><strong>Names and roles of visible buttons and links</strong> on the current page, so the request can be matched.</li>
+      <li><strong>Small pictures of unlabeled buttons</strong>, only when that setting is on and a command finds nothing.</li>
+    </ul>
+    <p>Typed commands are matched on your computer and do not need Gemini.</p>
+    <p>Ollie never sends page HTML, form field values, passwords, typed text, message contents or cookies.</p>
+    <p>Google processes this data under its own terms. If you use the free tier of the Gemini API, Google may use that data to improve its products. See <a href="https://policies.google.com/privacy">Google's privacy policy</a> and the Gemini API terms for details.</p>
+
+    <h2>Trigger word detection</h2>
+    <p>Trigger word detection runs entirely on your computer. Nothing leaves your computer until the phrase is heard.</p>
+
+    <h2>Sharing</h2>
+    <p>Ollie does not sell or share data with third parties. The only exception is the data sent for voice commands to Google, described above.</p>
+
+    <h2>Your choices</h2>
+    <ul>
+      <li>Turn listening off at any time with the on/off switch or the Stop button.</li>
+      <li>Turn off picture-based naming in Settings.</li>
+      <li>Delete your saved API key with "Forget key" in Settings.</li>
+      <li>Uninstalling Ollie removes its local settings and cache.</li>
+    </ul>
+
+    <h2>Children</h2>
+    <p>Ollie is not directed at children under 13.</p>
+
+    <h2>Changes</h2>
+    <p>If this policy changes, the updated version will be posted at this address with a new date.</p>
+  </main>
+</body>
+</html>
