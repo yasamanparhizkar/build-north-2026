@@ -109,13 +109,14 @@ test('fixture: content script injects and scans interactive elements', async () 
   console.log(`  scan: ${snap.elements.length} elements in ${snap.scanMs} ms`);
 
   assert.match(snap.snapshotId, /^[a-z0-9]+-v\d+$/);
-  for (const n of ['Compose', 'Search mail', 'Settings', 'Record', 'Archive', 'Shadow Send', 'Frame Reply', 'Contact us', 'Password', 'Note', 'Message body']) {
+  for (const n of ['Compose', 'Search mail', 'Settings', 'Record', 'Archive', 'Shadow Send', 'Frame Reply', 'Password', 'Note', 'Message body']) {
     assert.ok(names.includes(n), `missing ${n}: ${names.join(', ')}`);
   }
   assert.ok(!names.includes('Hidden Thing'), 'display:none elements are skipped');
   assert.equal(snap.elements.find((e) => e.name === 'Compose').region, 'top-left');
   assert.equal(snap.elements.find((e) => e.name === 'Compose').role, 'button');
-  assert.equal(snap.elements.find((e) => e.name === 'Contact us').visible, false);
+  assert.ok(!names.includes('Contact us'), 'off-screen controls are not listed');
+  assert.ok(snap.elements.every((e) => e.visible === undefined), 'rows no longer carry a visible flag');
   assert.deepEqual(errors, []);
 });
 
@@ -168,12 +169,14 @@ test('same-origin iframe element gets top-level coordinates', async () => {
   assert.ok(near(res.highlight.rects[0], expected), JSON.stringify({ got: res.highlight.rects[0], expected }));
 });
 
-test('off-screen element is scrolled into view', async () => {
+test('off-screen element is not offered until it is scrolled into view', async () => {
   await page.evaluate(() => window.scrollTo(0, 0));
-  const res = await command(tabId, 'contact us');
-  assert.match(res.status, /Pointing to/);
-  await new Promise((r) => setTimeout(r, 800));
-  assert.ok(await page.evaluate(() => window.scrollY > 500));
+  const hidden = await command(tabId, 'contact us');
+  assert.match(hidden.status, /No matching/);
+  await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+  await new Promise((r) => setTimeout(r, 300));
+  const shown = await command(tabId, 'contact us');
+  assert.match(shown.status, /Pointing to/);
   await page.evaluate(() => window.scrollTo(0, 0));
 });
 

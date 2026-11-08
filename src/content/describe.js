@@ -57,27 +57,3 @@ export function implicitRole(tag, type = '', hasHref = false, editable = false) 
     default: return editable ? 'textbox' : 'generic';
   }
 }
-
-/**
- * Keep the prompt small: in-viewport elements first (DOM order), then a few
- * off-screen ones; at most `maxSameName` elements sharing a role+name
- * (e.g. 50 "Not starred" buttons in an inbox).
- */
-export function limitCandidates(list, { maxVisible, maxOffscreen, maxSameName }) {
-  const seen = new Map();
-  const visible = [];
-  const offscreen = [];
-  for (const c of list) {
-    const key = `${c.role}|${c.name.toLowerCase()}`;
-    const count = seen.get(key) || 0;
-    if (count >= maxSameName) continue;
-    if (c.visible && visible.length < maxVisible) {
-      visible.push(c);
-      seen.set(key, count + 1);
-    } else if (!c.visible && offscreen.length < maxOffscreen) {
-      offscreen.push(c);
-      seen.set(key, count + 1);
-    }
-  }
-  return [...visible, ...offscreen];
-}

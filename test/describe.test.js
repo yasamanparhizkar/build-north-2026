@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  buildElementText, implicitRole, isRectVisible, limitCandidates, namesMatch, normalizeName, regionFor
+  buildElementText, implicitRole, isRectVisible, namesMatch, normalizeName, regionFor
 } from '../src/content/describe.js';
 import { SnapshotRegistry, nearestTo } from '../src/content/snapshot.js';
 
@@ -41,19 +41,6 @@ test('implicitRole covers common controls', () => {
   assert.equal(implicitRole('input', 'submit'), 'button');
   assert.equal(implicitRole('select'), 'combobox');
   assert.equal(implicitRole('div', '', false, true), 'textbox');
-});
-
-test('limitCandidates: visible first, caps repeats and off-screen count', () => {
-  const list = [
-    ...Array.from({ length: 10 }, () => ({ role: 'button', name: 'Not starred', visible: true })),
-    { role: 'button', name: 'Compose', visible: true },
-    ...Array.from({ length: 10 }, (_, i) => ({ role: 'link', name: `Footer ${i}`, visible: false }))
-  ];
-  const out = limitCandidates(list, { maxVisible: 50, maxOffscreen: 3, maxSameName: 4 });
-  assert.equal(out.filter((c) => c.name === 'Not starred').length, 4);
-  assert.ok(out.some((c) => c.name === 'Compose'));
-  assert.equal(out.filter((c) => !c.visible).length, 3);
-  assert.ok(out.findIndex((c) => !c.visible) > out.findIndex((c) => c.name === 'Compose'));
 });
 
 test('SnapshotRegistry: ids only resolve with their own snapshot', () => {

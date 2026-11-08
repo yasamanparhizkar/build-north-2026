@@ -12,9 +12,12 @@ test('cleanApiKey trims whitespace and surrounding quotes (regression: \\$ typo)
   assert.equal(cleanApiKey(undefined), '');
 });
 
-test('compactElements sends only id/role/name/region/visible', () => {
-  const rows = compactElements([{ id: 'el-1', role: 'button', name: 'Compose', region: 'top-left', x: 0.1, y: 0.2, visible: true, secret: 'x' }]);
-  assert.deepEqual(rows, [['el-1', 'button', 'Compose', 'top-left', 1]]);
+test('compactElements sends only id/role/name/region/nameIsGuessed', () => {
+  const rows = compactElements([
+    { id: 'el-1', role: 'button', name: 'Compose', region: 'top-left', x: 0.1, y: 0.2, enabled: true, inferred: false, secret: 'x' },
+    { id: 'el-2', role: 'button', name: 'search', region: 'top-right', x: 0.9, y: 0.1, enabled: true, inferred: true }
+  ]);
+  assert.deepEqual(rows, [['el-1', 'button', 'Compose', 'top-left', 0], ['el-2', 'button', 'search', 'top-right', 1]]);
 });
 
 test('buildUserPrompt JSON-encodes page text and typed commands (no prompt breakout)', () => {

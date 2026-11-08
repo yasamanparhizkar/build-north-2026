@@ -92,6 +92,12 @@
         <label for="model">Model</label>
         <input id="model" type="text" placeholder="gemini-flash-lite-latest" spellcheck="false">
       </div>
+      <div class="field">
+        <label for="vision-names">
+          <input id="vision-names" type="checkbox"> Name unlabeled buttons from their pictures
+        </label>
+        <p class="note">When a button has no name and a command cannot find it, the helper sends small pictures of just those buttons to Google Gemini to work out what they are. Full pages are never sent. Turn this off to keep pictures on this computer.</p>
+      </div>
     </div>
 
     <div class="actions-block">

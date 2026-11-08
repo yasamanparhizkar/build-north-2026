@@ -28,7 +28,7 @@ export function resolveTarget(registry, snapshotId, target) {
   const role = entry?.role || target.role;
   const name = entry?.name || target.name;
   if (!name) return { el: null, reason: 'unknown-target' };
-  const same = scanPage({ limit: false }).filter((c) => c.role === role && namesMatch(c.name, name));
+  const same = scanPage({ viewportOnly: false }).filter((c) => c.role === role && namesMatch(c.name, name));
   if (!same.length) return { el: null, reason: 'target-gone' };
   if (same.length === 1) return { el: same[0].el, rematched: true };
   if (entry?.rect) return { el: nearestTo(entry.rect, same).el, rematched: true };

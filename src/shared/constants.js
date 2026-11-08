@@ -71,9 +71,6 @@ export const MAX_CLIP_AGE_MS = 15000;
 export const DEDUPE_WINDOW_MS = 10000;
 
 // ---- Page elements ----
-export const MAX_ELEMENTS = 180;
-export const MAX_OFFSCREEN_ELEMENTS = 30;
-export const MAX_SAME_NAME = 4;
 export const MAX_NAME_LENGTH = 60;
 export const MAX_SNAPSHOTS = 4;
 

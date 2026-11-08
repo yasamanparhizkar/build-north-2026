@@ -1,17 +1,19 @@
 // Combine Gemini's validated answer with the deterministic matcher (pure).
 import { MAX_CANDIDATE_HIGHLIGHTS } from '../shared/constants.js';
 import { matchLocal } from './matcher.js';
+import { detectScroll } from './scroll.js';
 
 /** Below this, Gemini's pick is double-checked against the local matcher. */
 export const LOW_CONFIDENCE = 0.45;
 
 /**
- * @returns {{kind: 'point'|'candidates'|'no-match'|'ignore', ids: string[], label: string,
- *            target: string, transcript: string, source: string}}
+ * @returns {{kind: 'point'|'candidates'|'no-match'|'ignore'|'scroll', ids: string[], label: string,
+ *            target: string, transcript: string, source: string, direction?: 'up'|'down'}}
  */
 export function decideFromModel(result, elements) {
   const base = { transcript: result.transcript, target: result.target, label: result.label, ids: [], source: 'gemini' };
   if (!result.isCommand) return { ...base, kind: 'ignore' };
+  if (result.intent === 'scroll') return { ...base, kind: 'scroll', direction: result.scrollDirection === 'up' ? 'up' : 'down' };
 
   if (result.matchedElementId && result.confidence >= LOW_CONFIDENCE) {
     return { ...base, kind: 'point', ids: [result.matchedElementId] };
@@ -43,6 +45,8 @@ export function decideFromModel(result, elements) {
 
 /** Typed commands: Level 1/2 first. Returns null if Gemini (Level 3) should be asked. */
 export function decideFromText(text, elements, { allowAmbiguous = false } = {}) {
+  const direction = detectScroll(text);
+  if (direction) return { kind: 'scroll', direction, ids: [], label: '', target: text, transcript: text, source: 'local' };
   const local = matchLocal(text, elements);
   const base = { transcript: text, target: text, label: local.result.label, source: 'local' };
   if (local.confident) return { ...base, kind: 'point', ids: [local.result.matchedElementId] };

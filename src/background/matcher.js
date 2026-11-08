@@ -143,7 +143,8 @@ export function scoreElement(contentTokens, hints, roles, element) {
   if (hints.vert) score += vert === hints.vert ? 0.25 : -0.25;
   if (roles.size && roles.has(element.role)) score += 0.2;
   if (element.enabled === false) score -= 0.15;
-  if (element.visible === false) score -= 0.1;
+  // A name the helper inferred (icon, link, nearby text) is a guess: a real label wins ties.
+  if (element.inferred) score -= 0.1;
   // No upper clamp: spatial/role bonuses must be able to separate equal names.
   return Math.max(0, score);
 }
