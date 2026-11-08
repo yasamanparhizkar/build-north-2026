@@ -186,6 +186,13 @@ test('spotlight: clearing removes all spotlight UI and the page is bright again'
   assert.ok((await shot()).at(...FAR).lum >= 240);
 });
 
+test('spotlight: clear reports whether a highlight was showing (the popup Escape order uses it)', async () => {
+  await command('click the compose button');
+  await sleep(FADE_MS);
+  assert.equal((await clear()).wasActive, true, 'first clear: spotlight was showing');
+  assert.equal((await clear()).wasActive, false, 'second clear: nothing left to clear, so the popup closes');
+});
+
 test('spotlight: repeated highlighting never stacks overlays', async () => {
   await clear();
   await command('click the compose button');

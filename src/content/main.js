@@ -106,10 +106,13 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       setIndicator(!!request.listening, typeof request.label === 'string' ? request.label.slice(0, 60) : undefined);
       sendResponse({ ok: true, ui: uiState() });
       break;
-    case MSG.CLEAR_HIGHLIGHT:
+    case MSG.CLEAR_HIGHLIGHT: {
+      // wasActive tells the popup whether a highlight was showing (Escape clears it first, then closes).
+      const wasActive = pointerCount() > 0 || driverPointerActive();
       clearAll();
-      sendResponse({ ok: true, status: 'Cleared pointer', remaining: pointerCount(), ui: uiState() });
+      sendResponse({ ok: true, wasActive, status: 'Cleared pointer', remaining: pointerCount(), ui: uiState() });
       break;
+    }
   }
 });
 

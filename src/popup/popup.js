@@ -194,4 +194,20 @@ listenSwitch.addEventListener('click', async () => {
 });
 
 chrome.storage.onChanged.addListener((_changes, area) => { if (area === 'session') refresh(); });
+
+// Escape order: the first press leaves the on-page spotlight (the popup stays open);
+// the next press, with nothing highlighted, closes the popup.
+document.addEventListener('keydown', async (e) => {
+  if (e.key !== 'Escape' || e.defaultPrevented) return;
+  e.preventDefault();
+  const tab = await activeTab();
+  const res = tab?.id == null ? null
+    : await chrome.tabs.sendMessage(tab.id, { action: MSG.CLEAR_HIGHLIGHT }, { frameId: 0 }).catch(() => null);
+  if (res?.wasActive) {
+    refresh();
+    return;
+  }
+  window.close();
+});
+
 init();
