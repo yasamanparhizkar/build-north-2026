@@ -202,7 +202,7 @@ export function showSpotlight(target, instruction, options = {}) {
     prev.destroy();
   }
   const extras = (opts.extraTargets || []).filter((x) => isElement(x) && x !== el && x.isConnected);
-  current = new Spotlight([el, ...extras], String(instruction || 'Click here.').slice(0, 120), opts);
+  current = new Spotlight([el, ...extras], String(instruction || 'Click here.'), opts);
   return current.ready;
 }
 

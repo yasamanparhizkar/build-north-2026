@@ -30,8 +30,8 @@ const NAMES_SCHEMA = {
 
 /** Keep only short, plain names; anything else is ignored. */
 export function cleanName(raw) {
-  const s = String(raw || '').replace(/[^\p{L}\p{N} '&-]+/gu, ' ').replace(/\s+/g, ' ').trim().slice(0, 30);
-  if (!s || /^unknown$/i.test(s) || /^unlabeled/i.test(s) || s.split(' ').length > 3) return '';
+  const s = String(raw || '').replace(/[^\p{L}\p{N} '&-]+/gu, ' ').replace(/\s+/g, ' ').trim();
+  if (!s || s.length > 30 || /^unknown$/i.test(s) || /^unlabeled/i.test(s) || s.split(' ').length > 3) return '';
   return s;
 }
 

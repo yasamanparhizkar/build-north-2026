@@ -54,7 +54,7 @@ export function showScrollHint(direction, described) {
 
   const control = described.find((d) => d.enabled && SCROLL_CONTROL[direction].test(d.name.trim()));
   if (control) {
-    showPointers([control.el], { label: `Click ${control.name}` });
+    showPointers([control.el], { label: control.name });
     return { ok: true, where: 'control' };
   }
 

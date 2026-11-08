@@ -3,15 +3,13 @@
 // Never clicks or focuses the target.
 import { showStatus } from './badge.js';
 import { topRect } from './elements.js';
+import { instructionFor } from '../shared/instruction.js';
 import { destroySpotlight, getSpotlightState, showSpotlight } from './spotlight/index.js';
 
-const MAX_LABEL_LENGTH = 80;
-
-/** Turn a short label ("Click Compose") into a calm instruction sentence. */
+/** Turn a short label ("Click Compose") into one complete instruction sentence. */
 export function toInstruction(label, count) {
   if (count > 1) return 'Is it one of these?';
-  const text = String(label || 'Click here').trim().slice(0, MAX_LABEL_LENGTH);
-  return /[.!?]$/.test(text) ? text : `${text}.`;
+  return instructionFor(label);
 }
 
 /**

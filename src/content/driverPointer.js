@@ -12,6 +12,7 @@
 // Safety: never clicks; keyboard control disabled; focus Driver.js moves on its own
 // is given back.
 import { HIGHLIGHT_TIMEOUT_MS } from '../shared/constants.js';
+import { instructionFor } from '../shared/instruction.js';
 import { showStatus } from './badge.js';
 import { topRect } from './elements.js';
 import { getOverlay, prefersReducedMotion } from './overlay.js';
@@ -95,7 +96,7 @@ export async function showDriverPointer(el, { label }) {
   d.highlight({ element: el }); // no popover: we render our own floating text
 
   const { layer } = getOverlay();
-  const text = /[.!?]$/.test(label) ? label : `${label}.`;
+  const text = instructionFor(label);
   const labelEl = new InstructionLabel(layer, { text, onClose: () => clearDriverPointer() });
   addEventListener('keydown', onKey, true);
 

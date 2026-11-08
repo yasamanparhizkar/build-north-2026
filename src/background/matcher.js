@@ -149,8 +149,9 @@ export function scoreElement(contentTokens, hints, roles, element) {
   return Math.max(0, score);
 }
 
+// The full name, not a cut-off one: the content script turns it into a complete sentence.
 function shortLabel(name) {
-  return `Click ${name.split(' ').slice(0, 3).join(' ')}`;
+  return `Click ${name}`;
 }
 
 /**

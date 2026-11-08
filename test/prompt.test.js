@@ -79,8 +79,7 @@ test('validateModelResult clamps confidence, cleans labels and unknown regions',
   const r = validateModelResult({ ...ok, confidence: 7, label: 'Click\u0000<b>here</b> now please friend!!!!!!!!!!!!!!!!', region: 'upstairs' }, ['el-1']);
   assert.equal(r.confidence, 1);
   assert.ok(!r.label.includes('\u0000'));
-  assert.ok(r.label.length <= 40);
-  assert.equal(r.region, 'none');
+  assert.ok(r.label.length <= 200); // the content script turns it into a sentence (see instruction.test.js)  assert.equal(r.region, 'none');
 });
 
 test('ordinary conversation is not a command even if an id is returned', () => {

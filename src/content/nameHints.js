@@ -103,7 +103,14 @@ export function unlabeledName(role) {
 
 /** "button near 'Quarterly report'" for a control whose only clue is nearby text. */
 export function nearbyName(role, text) {
-  const clean = String(text || '').replace(/\s+/g, ' ').trim().slice(0, 30).trim();
+  // Keep whole words only, so the name never ends in the middle of a word.
+  const words = String(text || '').replace(/\s+/g, ' ').trim().split(' ');
+  let clean = '';
+  for (const w of words) {
+    const next = clean ? `${clean} ${w}` : w;
+    if (next.length > 30) break;
+    clean = next;
+  }
   return clean.length >= 2 ? `${roleWord(role)} near "${clean}"` : '';
 }
 

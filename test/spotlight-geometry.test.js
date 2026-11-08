@@ -71,8 +71,8 @@ test('markers sit on the top-left corner but stay on screen', () => {
 });
 
 test('toInstruction makes calm sentences', () => {
-  assert.equal(toInstruction('Click Compose', 1), 'Click Compose.');
-  assert.equal(toInstruction('Click the Record button.', 1), 'Click the Record button.');
+  assert.equal(toInstruction('Click Compose', 1), 'Click compose.');
+  assert.equal(toInstruction('Click the Record button.', 1), 'Click the record button.');
   assert.equal(toInstruction('Click Record', 2), 'Is it one of these?');
 });
 

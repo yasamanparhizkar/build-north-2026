@@ -27,7 +27,7 @@ Rules:
 - target: the control's name as spoken (e.g. "Compose"). region: a spoken location hint or "none".
 - matchedElementId: the id of the best element from the list, or null if none fits or several fit equally.
   Use names, roles, and spatial hints (region/x/y: 0=left/top, 1=right/bottom). Never invent ids.
-- confidence: your estimate 0..1. label: at most 4 friendly words, e.g. "Click Compose".
+- confidence: your estimate 0..1. label: a short instruction, e.g. "Click Compose". Use the control's name as the page shows it, without keyboard shortcuts or brackets.
 - Rows whose nameIsGuessed is 1 were named by the helper from icons, links or nearby text, not by the page.
   Prefer named rows. Choose a guessed row only when its role and position clearly fit the request,
   otherwise return matchedElementId null.
@@ -120,6 +120,6 @@ export function validateModelResult(raw, candidateIds) {
     matchedElementId: isCommand && intent === 'locate_element' && idValid ? id : null,
     rejectedId: Boolean(id && !idValid),
     confidence,
-    label: clean(raw.label, 40) || 'Click here'
+    label: clean(raw.label, 200) || 'Click here'
   };
 }

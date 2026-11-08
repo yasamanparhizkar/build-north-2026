@@ -31,7 +31,7 @@ function highlight({ snapshotId, targets, label, ambiguous }) {
   if (!live.length) return { ok: false, reason: resolved[0].reason };
   // If a framework re-renders the target, find it again by the same validated role+name.
   const reacquire = (k) => resolveTarget(registry, String(snapshotId), targets[liveIdx[k]]).el;
-  const rects = showPointers(live.map((r) => r.el), { label: String(label || 'Click here').slice(0, 40), ambiguous: !!ambiguous, reacquire });
+  const rects = showPointers(live.map((r) => r.el), { label: String(label || 'Click here'), ambiguous: !!ambiguous, reacquire });
   return { ok: true, count: live.length, rematched: live.some((r) => r.rematched), rects, renderer: 'spotlight', ui: describeSpotlight() };
 }
 
@@ -47,7 +47,7 @@ async function highlightWith(request) {
   if (!r.el) return { ok: false, reason: r.reason };
   try {
     clearPointers();
-    await showDriverPointer(r.el, { label: String(request.label || 'Click here').slice(0, 40) });
+    await showDriverPointer(r.el, { label: String(request.label || 'Click here') });
     return { ok: true, count: 1, rematched: !!r.rematched, rects: [topRect(r.el)], renderer: 'driver', ui: uiState() };
   } catch (e) {
     console.warn('[Senior Helper] Driver.js failed, using built-in spotlight', e);
