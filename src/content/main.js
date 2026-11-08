@@ -6,6 +6,9 @@ import { clearDriverPointer, driverLabelState, driverPointerActive, showDriverPo
 import { scanPage, topRect } from './elements.js';
 import { clearPointers, describeSpotlight, pointerCount, showPointers } from './pointer.js';
 import { SnapshotRegistry } from './snapshot.js';
+import { showScrollHint } from './scroll.js';
+import { normalizeName } from './describe.js';
+import { controlSignature, setVisionName } from './accname.js';
 import { resolveTarget } from './validate.js';
 
 const registry = new SnapshotRegistry({ max: MAX_SNAPSHOTS });
@@ -15,7 +18,7 @@ function getElements() {
   const described = scanPage();
   const { snapshotId, ids } = registry.create(described);
   const elements = described.map((d, i) => ({
-    id: ids[i], role: d.role, name: d.name, region: d.region, x: d.x, y: d.y, visible: d.visible, enabled: d.enabled
+    id: ids[i], role: d.role, name: d.name, region: d.region, x: d.x, y: d.y, enabled: d.enabled, inferred: !!d.inferred
   }));
   return { snapshotId, elements, scanMs: Math.round(performance.now() - t0) };
 }
@@ -70,6 +73,31 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       clearDriverPointer();
       highlightWith(request).then(sendResponse);
       return true; // async response
+    case MSG.GET_RECTS: {
+      // Viewport rects and appearance fingerprints for vision naming; no names or text.
+      const items = {};
+      for (const id of request.ids || []) {
+        const el = registry.lookup(String(request.snapshotId), String(id))?.ref.deref();
+        if (el?.isConnected) items[id] = { rect: topRect(el), sig: controlSignature(el) };
+      }
+      sendResponse({ vw: innerWidth, vh: innerHeight, items });
+      break;
+    }
+    case MSG.SET_NAMES: {
+      for (const [id, name] of Object.entries(request.names || {})) {
+        const entry = registry.lookup(String(request.snapshotId), id);
+        const el = entry?.ref.deref();
+        if (!el) continue;
+        setVisionName(el, name);
+        entry.name = normalizeName(name); // keeps resolveTarget's name check in step
+      }
+      sendResponse({ ok: true });
+      break;
+    }
+    case MSG.SCROLL_HINT:
+      clearAll();
+      sendResponse({ ...showScrollHint(request.direction === 'up' ? 'up' : 'down', scanPage()), ui: uiState() });
+      break;
     case MSG.STATUS:
       showStatus(String(request.text || ''), request.autoHideMs);
       sendResponse({ ok: true });

@@ -240,15 +240,17 @@ test('spotlight: multiple candidates each get an opening', async () => {
   assert.ok(img.at(...FAR).lum <= 80);
 });
 
-test('spotlight: target near the bottom edge is scrolled in and opened', async () => {
+test('spotlight: target near the bottom edge is opened on screen', async () => {
   await clear();
-  await page.evaluate(() => window.scrollTo(0, 0));
+  // Only visible controls are offered, so bring the footer into view first (at the bottom edge).
+  await page.evaluate(() => document.getElementById('footer').scrollIntoView({ block: 'end' }));
+  await sleep(300);
   await command('contact us');
-  await sleep(1200); // smooth scroll + fade
+  await sleep(1200); // fade
   const link = await rectOf('#footer');
   const ui = (await send({ action: 'INDICATOR', listening: false })).ui;
   assert.ok(ui.backdropVisible);
-  assert.ok(link.top >= 0 && link.top + link.height <= VIEW.height, 'target not scrolled fully into view');
+  assert.ok(link.top >= 0 && link.top + link.height <= VIEW.height, 'target not fully in view');
   assert.ok(ui.halos[0].top < VIEW.height && ui.halos[0].top + ui.halos[0].height > 0, 'opening not on screen');
   assert.ok((await shot('spotlight-edge.png')).at(link.left + 3, link.top + link.height / 2).lum >= 150, 'link not lit');
   await clear();

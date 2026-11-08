@@ -18,6 +18,9 @@ export const MSG = Object.freeze({
   // background/popup -> content
   GET_ELEMENTS: 'GET_ELEMENTS',
   HIGHLIGHT: 'HIGHLIGHT',
+  SCROLL_HINT: 'SCROLL_HINT', // point at the page's scroll control or the scroll edge
+  GET_RECTS: 'GET_RECTS', // viewport rects + appearance fingerprints for vision naming
+  SET_NAMES: 'SET_NAMES', // vision-inferred names for unlabeled controls
   STATUS: 'STATUS',
   INDICATOR: 'INDICATOR',
   CLEAR_HIGHLIGHT: 'CLEAR_HIGHLIGHT'

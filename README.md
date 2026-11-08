@@ -16,7 +16,7 @@ A Chrome extension (Manifest V3) that helps an older adult find things on a web 
 5. [Test voice in a real Google Meet call](#4-test-voice-in-a-real-google-meet-call)
 6. [Development workflow](#development-workflow)
 7. [Where is the API key stored?](#where-is-the-api-key-stored)
-8. [How it works](#how-it-works) · [Spotlight module](#spotlight-module) · [Project layout](#project-layout) · [Configuration](#configuration)
+8. [How it works](#how-it-works) · [Controls without labels](#controls-without-labels) · [Scroll commands](#scroll-commands) · [Spotlight module](#spotlight-module) · [Project layout](#project-layout) · [Configuration](#configuration)
 9. [Privacy and security](#privacy-and-security) · [Troubleshooting](#troubleshooting) · [Known limitations](#known-limitations) · [Roadmap](#roadmap)
 
 ## Project status
@@ -64,8 +64,8 @@ A Chrome extension (Manifest V3) that helps an older adult find things on a web 
 ### Steps
 ```
 npm install                # once: dev tools (Puppeteer) and the ONNX runtime. Puppeteer downloads "Chrome for Testing" (~150 MB)
-npm test                   # 124 unit tests incl. the manifest check, a few seconds
-npm run test:integration   # 51 tests that load the real extension in Chrome for Testing, about a minute
+npm test                   # 134 unit tests incl. the manifest check, a few seconds
+npm run test:integration   # 58 tests that load the real extension in Chrome for Testing, about a minute
 npm run test:all           # both of the above
 ```
 Chrome for Testing is stored in `%USERPROFILE%\.cache\puppeteer` (macOS/Linux: `~/.cache/puppeteer`). Your normal Chrome profile is not touched.
@@ -73,8 +73,8 @@ Chrome for Testing is stored in `%USERPROFILE%\.cache\puppeteer` (macOS/Linux: `
 ### Expected output
 `npm test` ends with:
 ```
-# tests 124
-# pass 124
+# tests 134
+# pass 134
 # fail 0
 ```
 `npm run test:integration` ends with:
@@ -93,7 +93,7 @@ Chrome for Testing is stored in `%USERPROFILE%\.cache\puppeteer` (macOS/Linux: `
 | Suite | Covers |
 |---|---|
 | Unit (`test/*.test.js`, 13 files) | Audio resampling and WAV encoding, voice-activity detection and clip segmentation, wake-word features and gate, prompt and schema, response validation (made-up ids, unsupported actions, malformed JSON), Gemini client (model selection, fallback, 429, 5xx, timeout), matcher and synonyms, ambiguity handling, session state machine, stale-result rejection, dedupe, metrics, snapshot registry, URL filter, manifest |
-| Integration (`test/integration/`) | Content-script injection and re-injection, DOM scan (shadow DOM, same-origin iframes, privacy: field values never collected), snapshot validation and re-matching, pointer tracking, the spotlight (lit target, dimmed page, scroll and resize, stacking, reduced motion, Stop clickable), the driver.js mode, **no clicks by the extension**, the on-device wake word under the extension's CSP, wake-word and always-listen end to end with a fake Gemini, the popup (listening switch, Settings, Forget key, text page), restricted pages, voice pipeline (dedupe, overload fallback, rate limit, Stop discards late results, metrics), and the real Wikipedia and example.com pages |
+| Integration (`test/integration/`) | Content-script injection and re-injection, viewport-only DOM scan (every visible control listed, off-screen ones not, icon-only and nearby names, scroll hints), DOM scan (shadow DOM, same-origin iframes, privacy: field values never collected), snapshot validation and re-matching, pointer tracking, the spotlight (lit target, dimmed page, scroll and resize, stacking, reduced motion, Stop clickable), the driver.js mode, **no clicks by the extension**, the on-device wake word under the extension's CSP, wake-word and always-listen end to end with a fake Gemini, the popup (listening switch, Settings, Forget key, text page), restricted pages, voice pipeline (dedupe, overload fallback, rate limit, Stop discards late results, metrics), and the real Wikipedia and example.com pages |
 | Manual (sections 3–4, [docs/TESTING.md](docs/TESTING.md)) | Real Gmail/Meet pages, real tab audio capture, real Gemini, latency |
 
 ---
@@ -230,19 +230,45 @@ flowchart TD
 **Flow for one spoken command (always listen):**
 1. The offscreen document plays the Meet audio back (capture mutes the tab otherwise) and runs an energy-based voice-activity detector with an adaptive noise floor.
 2. A clip is sent **~0.7 s after speech ends**, or every **4 s** during long speech. Each clip holds up to **6 s** of audio, so consecutive clips overlap by 2 s and a sentence crossing a boundary is heard whole. Silence is never sent.
-3. The service worker drops stale work (old session, already-handled sequence, older than 15 s, rate-limited), asks the content script for a fresh **snapshot**, and sends the clip plus a compact element table (`[id, role, name, region, visible]`) to Gemini with a strict response schema.
+3. The service worker drops stale work (old session, already-handled sequence, older than 15 s, rate-limited), asks the content script for a fresh **snapshot**, and sends the clip plus a compact table of every control **in the viewport** (`[id, role, name, region, nameIsGuessed]`) to Gemini with a strict response schema. Nothing on screen is dropped; controls outside the viewport are not listed.
 4. The answer is validated: unknown ids and unsupported intents are rejected, and confidence is clamped. Then it is combined with the deterministic matcher:
+   - A `scroll` answer, or a typed "scroll up/down", shows a scroll hint instead (see below).
    - A confident validated pick points directly.
    - A missing or low-confidence pick falls back to matching the spoken target locally.
    - If it is still ambiguous, up to 3 numbered candidates are shown instead of guessing.
 5. Duplicate commands from overlapping clips are suppressed (same target within 10 s). Results that arrive after *Stop* or after a newer highlight are discarded.
-6. The content script resolves `(snapshotId, id)` to the live element and checks it still exists, is visible, and still has the same accessible name. If the page re-rendered, it re-matches by role and name. Only then does it draw the spotlight.
+6. The content script resolves `(snapshotId, id)` to the live element and checks it still exists, is visible, and still has the same accessible name (a name the helper inferred counts too, because the same function computes it).
+7. If nothing matched by name, the helper may name the unlabeled controls from small pictures of just those controls (see *Naming controls without labels*), then matches again. If the page re-rendered, it re-matches by role and name. Only then does it draw the spotlight.
 
 **Trigger word mode** differs in steps 1–2: the on-device detector keeps the last 2 s of audio in memory. When "Hey Jarvis" is heard, a chime plays, the page shows "I'm listening… say what to find.", and **one clip** (the phrase plus the request, at most about 10 s) is sent. Wake-word requests are never deduplicated.
 
 **Typed commands** use the same path, except the offline matcher is tried first and Gemini (text) is only asked if the matcher is unsure and a key is saved.
 
 **Session states:** `idle → starting → listening ⇄ processing → interrupted / error → idle`. Every Start or Stop bumps a *generation* number, so work started under an older session is discarded.
+
+### Controls without labels
+
+Every visible control is listed, even when the page gives it no name. The name comes from the first clue that applies:
+
+1. The page's own label (`aria-label`, `aria-labelledby`, text, `<label>`, `alt`, `title`).
+2. An inner label (an icon's `aria-label` or `<title>`).
+3. A vision name, if one was learned for this icon (see below).
+4. An icon word from its class, id or test hook (`fa-search` → *Search*, `lucide-x` → *Close*). Hashed class names are ignored.
+5. The link's destination (`/cart` → *Cart*, `mailto:` → *Email*).
+6. The form it belongs to (*Search* for the button of a search form, *Email* for an `autocomplete="email"` field).
+7. Nearby text in the same row or card (*button near "Quarterly report"*).
+8. Otherwise *unlabeled button* (or *unlabeled text field*, and so on).
+
+Names from steps 3–8 are marked as inferred. The matcher gives a real label priority when two controls fit equally well. When a command finds nothing by name and some visible controls are *unlabeled*, the helper can capture the visible tab, crop just those controls, and ask Gemini for a 1–3 word name. Answers are cached per site and icon look, and the setting can be turned off in Settings.
+
+### Scroll commands
+
+"Scroll down" and "Scroll up" are understood offline (and by Gemini). The helper never scrolls the page. It points at:
+
+- the page's own control, such as *Back to top*, *Scroll to top* or *Scroll down*, when one is visible; or
+- otherwise the scrolling edge of the page, with the text *"Scroll down. You can also use your mouse wheel, trackpad or the arrow keys."* The hint goes away once the page has scrolled.
+
+If the page is already at the bottom (or top), it says so. If nothing on the page scrolls, it says that.
 
 ## Spotlight module
 
@@ -358,7 +384,7 @@ Modules marked *pure* have no Chrome or DOM dependencies and are unit tested in 
 | `WAKE_PREROLL_MS` / `WAKE_END_OF_COMMAND_MS` | 2000 / 900 | Audio kept before the wake phrase / pause that ends a request |
 | `WAKE_WAIT_FOR_COMMAND_MS` / `WAKE_MAX_COMMAND_MS` | 5000 / 8000 | Give up with no request / hard limit on audio sent per wake phrase |
 | `WAKE_CHIME` | `true` | Play a short tone when the wake phrase is heard |
-| `MAX_ELEMENTS` / `MAX_SAME_NAME` | 180 / 4 | Prompt size limits |
+| `MAX_NODES` | 30000 | Safety cap on DOM nodes walked per scan (large pages) |
 | `HIGHLIGHT_TIMEOUT_MS` | 20000 | Pointer lifetime |
 
 ## Privacy and security
@@ -368,6 +394,7 @@ Modules marked *pure* have no Chrome or DOM dependencies and are unit tested in 
 - **Always listen mode (default):** **short clips of all speech** in the Meet tab's audio are sent.
 - In both modes, the clip and the **names/roles of visible buttons and links** on your current page are sent to Google's Gemini API. They are subject to your API tier's data-use terms (free-tier data may be used by Google to improve products).
 - Never sent: page HTML, field values, passwords, typed text, message bodies, cookies. Labels are truncated to 60 characters. Note that link text (for example an email subject shown as a link) can appear among the labels.
+- **Naming controls without labels (on by default, Settings → *Name unlabeled buttons from their pictures*):** when a command finds nothing and some visible buttons have no name, the helper captures the visible tab, crops **only those buttons** (no full page), and sends the small crops to Gemini to get a 1–3 word name. Each answer is cached on this computer per site and icon look, so the same icon is named once. Turn the setting off to keep pictures on this computer.
 - No audio or transcripts are written to disk. The last transcript is kept only in memory (`chrome.storage.session`) for context and is cleared on Stop.
 - Page text is treated as untrusted data: it is JSON-encoded in the prompt, the model's output is schema-validated, and returned ids must be in the submitted list. Nothing the model returns is executed or used as a selector.
 - Web pages cannot drive the extension: messages are checked by sender type, and content scripts may only send *Stop*.
@@ -395,6 +422,8 @@ Modules marked *pure* have no Chrome or DOM dependencies and are unit tested in 
 - Speech-to-pointer latency is expected to be roughly 0.7 s (end of speech) + upload + Gemini time; measure it with Diagnostics during a real call.
 - Captured audio is the whole Meet tab playback, including the senior's own voice if Meet echoes it, and any shared media. Gemini decides what is an instruction.
 - Cross-origin iframes, closed shadow roots, canvas UIs and native browser dialogs are not scanned.
+- Controls outside the viewport are not listed. "Scroll down" points at the page's own scroll button when one is visible; otherwise it points at the scroll edge of the page and says how to scroll by other means. It never scrolls the page itself.
+- Inferred names (from icons, links, nearby text, or pictures) are guesses. The helper prefers real labels, and when a guess is not clearly the right one it shows a few candidates instead of pointing at one.
 - Elements in the browser's top layer (`<dialog>.showModal()`, fullscreen) can cover the overlay.
 - The trigger word only hears the **Meet tab** (the other person's voice), not this computer's microphone.
 - "Hey Jarvis" is openWakeWord's pre-trained model, licensed **CC BY-NC-SA 4.0 (non-commercial)**. A custom phrase needs a model trained with openWakeWord's notebook ([models/wakeword/README.md](models/wakeword/README.md)).

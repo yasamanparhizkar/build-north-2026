@@ -1,8 +1,7 @@
 // Scans the page for interactive elements: the main document, open shadow
 // roots and same-origin iframes. Coordinates are in the top-level viewport.
-import { MAX_ELEMENTS, MAX_OFFSCREEN_ELEMENTS, MAX_SAME_NAME } from '../shared/constants.js';
-import { accessibleName, computeRole } from './accname.js';
-import { hasSize, isRectVisible, limitCandidates, regionFor } from './describe.js';
+import { accessibleNameInfo, computeRole } from './accname.js';
+import { hasSize, isRectVisible, regionFor } from './describe.js';
 import { OVERLAY_HOST_ID } from './overlay.js';
 
 export const INTERACTIVE_SELECTOR = [
@@ -72,12 +71,17 @@ function scanRoot(root, out, budget, depth) {
   }
 }
 
-/** Describe one element, or null if it should not be offered. */
-export function describeElement(el, vw, vh) {
+/**
+ * Describe one element, or null if it should not be offered.
+ * With `viewportOnly` (the default for scans) off-screen elements are skipped
+ * before any name work; a re-match after scrolling passes `viewportOnly: false`.
+ */
+export function describeElement(el, vw, vh, { viewportOnly = true } = {}) {
   const rect = topRect(el);
   if (!hasSize(rect) || !isDisplayed(el)) return null;
+  if (viewportOnly && !isRectVisible(rect, vw, vh)) return null;
   const role = computeRole(el);
-  const name = accessibleName(el, role);
+  const { name, source } = accessibleNameInfo(el, role);
   if (!name) return null;
   const cx = Math.min(1, Math.max(0, (rect.left + rect.width / 2) / vw));
   const cy = Math.min(1, Math.max(0, (rect.top + rect.height / 2) / vh));
@@ -89,23 +93,21 @@ export function describeElement(el, vw, vh) {
     region: regionFor(cx, cy),
     x: +cx.toFixed(2),
     y: +cy.toFixed(2),
-    visible: isRectVisible(rect, vw, vh),
-    enabled: !(el.disabled || el.getAttribute('aria-disabled') === 'true')
+    enabled: !(el.disabled || el.getAttribute('aria-disabled') === 'true'),
+    inferred: source !== 'dom'
   };
 }
 
 /** @returns {Array<object>} described candidates (with live `el` references) */
-export function scanPage({ limit = true } = {}) {
+export function scanPage({ viewportOnly = true } = {}) {
   const vw = window.innerWidth;
   const vh = window.innerHeight;
   const nodes = [];
   scanRoot(document, nodes, { left: MAX_NODES }, 0);
   const described = [];
   for (const el of nodes) {
-    const d = describeElement(el, vw, vh);
+    const d = describeElement(el, vw, vh, { viewportOnly });
     if (d) described.push(d);
   }
-  return limit
-    ? limitCandidates(described, { maxVisible: MAX_ELEMENTS, maxOffscreen: MAX_OFFSCREEN_ELEMENTS, maxSameName: MAX_SAME_NAME })
-    : described;
+  return described;
 }

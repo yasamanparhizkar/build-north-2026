@@ -16,6 +16,7 @@ const wave = $('wave');
 const meetHint = $('meet-hint');
 const privacyNote = $('privacy-note');
 const apiKeyInput = $('api-key');
+const visionNamesInput = $('vision-names');
 const modelInput = $('model');
 const voiceModeSelect = $('voice-mode');
 const voiceModeNote = $('voice-mode-note');
@@ -108,9 +109,10 @@ async function refresh() {
 }
 
 async function init() {
-  const s = await chrome.storage.local.get(['geminiApiKey', 'model', 'voiceMode']);
+  const s = await chrome.storage.local.get(['geminiApiKey', 'model', 'voiceMode', 'visionNames']);
   apiKeyInput.value = s.geminiApiKey || '';
   modelInput.value = s.model || '';
+  visionNamesInput.checked = s.visionNames !== false;
   voiceModeSelect.value = validMode(s.voiceMode);
   showModeText(voiceModeSelect.value);
   const tab = await activeTab();
@@ -156,6 +158,7 @@ saveBtn.addEventListener('click', async () => {
   await chrome.storage.local.set({
     geminiApiKey: apiKeyInput.value.trim(),
     model: modelInput.value.trim(),
+    visionNames: visionNamesInput.checked,
     voiceMode: validMode(voiceModeSelect.value) // takes effect the next time listening starts
   });
   saveBtn.textContent = 'Saved';

@@ -9,10 +9,16 @@ import {
 import { getSession, updateSession, withLock } from './session.js';
 import { findTargetTab, notifyTab, sendToTab } from './tabs.js';
 import { stopListening } from './capture.js';
+import { nameUnlabeledControls } from './vision.js';
 
 async function getSettings() {
-  const s = await chrome.storage.local.get(['geminiApiKey', 'model', 'pointerStyle']);
-  return { apiKey: s.geminiApiKey || '', model: s.model || '', pointerStyle: s.pointerStyle === 'driver' ? 'driver' : 'spotlight' };
+  const s = await chrome.storage.local.get(['geminiApiKey', 'model', 'pointerStyle', 'visionNames']);
+  return {
+    apiKey: s.geminiApiKey || '',
+    model: s.model || '',
+    pointerStyle: s.pointerStyle === 'driver' ? 'driver' : 'spotlight',
+    visionNames: s.visionNames !== false
+  };
 }
 
 export function updateMetrics(fn) {
@@ -64,6 +70,35 @@ async function applyDecision({ decision, job, tabId, snapshot, timings = {}, typ
       });
     }
     return { status: 'Not a computer instruction', transcript: decision.transcript };
+  }
+  if (decision.kind === 'scroll') {
+    const key = `scroll:${decision.direction}`;
+    if (!typed && !job?.wake) {
+      const s = await getSession();
+      if (isDuplicateCommand(s.recentCommands, key, now)) return { status: 'Duplicate command ignored' };
+    }
+    const { pointerStyle } = await getSettings();
+    const res = await sendToTab(tabId, { action: MSG.SCROLL_HINT, direction: decision.direction, renderer: pointerStyle });
+    if (!res?.ok) {
+      const text = res?.reason === 'at-end' ? `You are already at the ${res.where}.`
+        : res?.reason === 'no-scroller' ? 'This page does not scroll.'
+        : 'I could not find the scrolling part of this page.';
+      notifyTab(tabId, { action: MSG.STATUS, text, autoHideMs: 5000 });
+      return { status: `Scroll ${decision.direction}: ${res?.reason || 'no scroller'}` };
+    }
+    await updateSession((s) => ({ recentCommands: rememberCommand(s.recentCommands, key, now) }));
+    await updateMetrics((m) => bump(m, 'highlights'));
+    return { status: `Scroll ${decision.direction} hint (${res.where})`, transcript: decision.transcript, highlight: res };
+  }
+  if (decision.kind === 'no-match' && decision.target) {
+    // Nothing matched by name: try to name the unlabeled controls from their pictures, then match again.
+    const settings = await getSettings();
+    const named = settings.visionNames ? await nameUnlabeledControls({ tabId, snapshot, apiKey: settings.apiKey, model: settings.model }) : null;
+    if (named) {
+      snapshot = named.snapshot;
+      const retry = decideFromText(decision.target, snapshot.elements, { allowAmbiguous: true });
+      if (retry && retry.kind !== 'no-match') decision = { ...retry, source: 'vision' };
+    }
   }
   if (decision.kind === 'no-match' || !decision.ids.length) {
     const what = decision.target ? `"${decision.target}"` : 'that';

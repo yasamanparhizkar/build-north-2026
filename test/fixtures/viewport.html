@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Viewport fixture</title>
+  <style>
+    body { margin: 0; font-family: sans-serif; }
+    .bar { display: flex; gap: 12px; align-items: center; padding: 8px 12px; height: 40px; }
+    .grid { display: grid; grid-template-columns: repeat(24, 44px); gap: 6px; padding: 12px; }
+    .grid button { width: 44px; height: 24px; font-size: 10px; }
+    .tall { height: 3000px; }
+    .fixed-top { position: fixed; right: 16px; bottom: 16px; }
+    #icon-search, #icon-close, #row-toggle { width: 24px; height: 24px; }
+    #cart-link .badge { display: inline-block; width: 16px; height: 16px; }
+  </style>
+</head>
+<body>
+  <div class="bar">
+    <button id="icon-search" class="icon fa fa-search"></button>
+    <button id="icon-close"><svg class="lucide lucide-x" width="16" height="16"><path d="M1 1l14 14"/></svg></button>
+    <a id="cart-link" href="/cart"><span class="badge"></span></a>
+    <ul><li><span>Quarterly report</span><button id="row-toggle" class="zz9qk"></button></li></ul>
+  </div>
+  <div class="grid" id="grid"></div>
+  <div class="tall">
+    <div style="height: 2900px"></div>
+    <button id="far">Far away</button>
+  </div>
+  <button id="top-btn" class="fixed-top" onclick="window.scrollTo(0, 0)">Back to top</button>
+  <script>
+    const grid = document.getElementById('grid');
+    for (let i = 0; i < 240; i++) {
+      const b = document.createElement('button');
+      b.textContent = 'Not starred';
+      grid.appendChild(b);
+    }
+  </script>
+</body>
+</html>
