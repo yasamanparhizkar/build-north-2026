@@ -16,7 +16,7 @@ Automated tests cover the DOM, matching, pointer and pipeline logic (see `npm ru
 | 2 | B talks | A still hears B clearly, with no echo or doubled audio |
 | 3 | A switches to the Gmail tab | Pill visible on Gmail. Popup still *Listening* |
 | 4 | B: "Hey Ollie, click the Compose button." | Chime + *"I'm listening…"*, then pointer on Gmail's **Compose** within a few seconds |
-| 5 | A switches back to Meet. B: "Hey Ollie … (pause) … where is the microphone button?" | Chime after "Jarvis"; pointer on Meet's microphone button after the request |
+| 5 | A switches back to Meet. B: "Hey Ollie … (pause) … where is the microphone button?" | Chime after "Ollie"; pointer on Meet's microphone button after the request |
 | 6 | B chats normally for 1 minute ("How was lunch?"), including "click the Compose button" **without** the wake phrase | No chime, no pointer. Diagnostics: **API calls did not increase** |
 | 7 | B: "Hey Ollie, click Compose" twice, 5 s apart | Two chimes; the pointer is shown both times |
 | 8 | B: "Hey Ollie" and then says nothing | Chime, then after ~5 s *"I didn't hear a request…"*; no API call |

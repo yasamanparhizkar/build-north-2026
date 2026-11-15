@@ -26,7 +26,7 @@ A Chrome extension (Manifest V3) that helps an older adult find things on a web 
 | Typed commands (offline matcher), pointer, DOM scanning | ✅ Verified in real Chrome, including live Wikipedia and example.com |
 | Snapshot validation, privacy filters, no-click guarantee | ✅ Verified in real Chrome (integration tests) |
 | Voice pipeline logic (dedupe, stale results, rate limits) | ✅ Verified in real Chrome with a **mocked** Gemini |
-| Trigger word "Hey Ollie" (on-device) and *Always listen* mode | ⚠️ The "Hey Ollie" model is new and not yet checked on recordings or in a real Meet call. The earlier "Hey Jarvis" checks do not apply to it. *Always listen* was verified in real Chrome |
+| Trigger word "Hey Ollie" (on-device) and *Always listen* mode | ⚠️ The "Hey Ollie" model is new and not yet checked on recordings or in a real Meet call. The earlier checks were for a different model. *Always listen* was verified in real Chrome |
 | Meet tab audio capture + real Gemini audio understanding | ⚠️ **Not yet verified in a real call.** Section 4 / [docs/TESTING.md](docs/TESTING.md) |
 | Speech-to-pointer latency | ⚠️ Not measured yet. Recorded live in popup → Diagnostics |
 

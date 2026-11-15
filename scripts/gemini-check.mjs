@@ -21,7 +21,7 @@ const elements = names.map((name, i) => ({
   id: `el-${i + 1}`, role: name === 'Search mail' ? 'searchbox' : 'button', name, region: i < 6 ? 'left' : 'top-right', x: 0.1, y: 0.1 + i * 0.05, visible: true, enabled: true
 }));
 
-const wav = fs.readFileSync('test/fixtures/audio/pos_2.wav'); // "Hey Jarvis, click the compose button."
+const wav = fs.readFileSync('test/fixtures/audio/pos_6.wav'); // "Hey Ollie, click the compose button."
 const audio = { audioBase64: wav.toString('base64'), mimeType: 'audio/wav', durationMs: Math.round(((wav.length - 44) / 32000) * 1000), wake: true };
 
 const models = process.argv[2] ? [process.argv[2]] : [...new Set(['gemini-flash-latest', DEFAULT_MODEL, ...BUSY_FALLBACK_MODELS])];
