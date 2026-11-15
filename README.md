@@ -26,7 +26,7 @@ A Chrome extension (Manifest V3) that helps an older adult find things on a web 
 | Typed commands (offline matcher), pointer, DOM scanning | ✅ Verified in real Chrome, including live Wikipedia and example.com |
 | Snapshot validation, privacy filters, no-click guarantee | ✅ Verified in real Chrome (integration tests) |
 | Voice pipeline logic (dedupe, stale results, rate limits) | ✅ Verified in real Chrome with a **mocked** Gemini |
-| Trigger word "Hey Jarvis" (on-device) and *Always listen* mode | ✅ Both verified in real Chrome by playing speech through the offscreen capture path; trigger word confirmed by hand in a real Meet call |
+| Trigger word "Hey Ollie" (on-device) and *Always listen* mode | ⚠️ The "Hey Ollie" model is new and not yet checked on recordings or in a real Meet call. The earlier checks were for a different model. *Always listen* was verified in real Chrome |
 | Meet tab audio capture + real Gemini audio understanding | ⚠️ **Not yet verified in a real call.** Section 4 / [docs/TESTING.md](docs/TESTING.md) |
 | Speech-to-pointer latency | ⚠️ Not measured yet. Recorded live in popup → Diagnostics |
 
@@ -129,7 +129,7 @@ These checks use the popup's **Text** page. No API key and no Meet call are need
 1. **Computer:** open <https://meet.google.com>, click **New meeting** → *Start an instant meeting*, and copy the link.
 2. **Phone:** join the same meeting with the link (any Google account, or as a guest).
 3. **Computer, on the Meet tab:** click the extension icon and turn on the **listening switch**.
-   ✅ The toolbar badge shows a green **ON**. The popup shows **Listening** (or **Say "Hey Jarvis"** in trigger word mode), and a pill appears top right with the same text and a **Stop** button.
+   ✅ The toolbar badge shows a green **ON**. The popup shows **Listening** (or **Say "Hey Ollie"** in trigger word mode), and a pill appears top right with the same text and a **Stop** button.
 4. **Phone:** say something. ✅ You still hear it clearly on the computer (no silence, no echo).
 5. **Computer:** open a new tab with <https://en.wikipedia.org> (or Gmail) and stay on it.
 6. **Phone:** say clearly: *"Click the Log in button."* (on Gmail: *"Click the Compose button."*)
@@ -225,7 +225,7 @@ flowchart TD
 
 **Listening modes** (set in Settings):
 - **Always listen** (default): the offscreen document sends short clips of all speech.
-- **Trigger word**: an on-device model listens for "Hey Jarvis". Nothing leaves the computer until it is heard; then only the request after it is sent.
+- **Trigger word**: an on-device model listens for "Hey Ollie". Nothing leaves the computer until it is heard; then only the request after it is sent.
 
 **Flow for one spoken command (always listen):**
 1. The offscreen document plays the Meet audio back (capture mutes the tab otherwise) and runs an energy-based voice-activity detector with an adaptive noise floor.
@@ -240,7 +240,7 @@ flowchart TD
 6. The content script resolves `(snapshotId, id)` to the live element and checks it still exists, is visible, and still has the same accessible name (a name the helper inferred counts too, because the same function computes it).
 7. If nothing matched by name, the helper may name the unlabeled controls from small pictures of just those controls (see *Naming controls without labels*), then matches again. If the page re-rendered, it re-matches by role and name. Only then does it draw the spotlight.
 
-**Trigger word mode** differs in steps 1–2: the on-device detector keeps the last 2 s of audio in memory. When "Hey Jarvis" is heard, a chime plays, the page shows "I'm listening… say what to find.", and **one clip** (the phrase plus the request, at most about 10 s) is sent. Wake-word requests are never deduplicated.
+**Trigger word mode** differs in steps 1–2: the on-device detector keeps the last 2 s of audio in memory. When "Hey Ollie" is heard, a chime plays, the page shows "I'm listening… say what to find.", and **one clip** (the phrase plus the request, at most about 10 s) is sent. Wake-word requests are never deduplicated.
 
 **Typed commands** use the same path, except the offline matcher is tried first and Gemini (text) is only asked if the matcher is unsure and a key is saved.
 
@@ -328,7 +328,7 @@ src/
     wakeGate.js          opens the gate after the wake phrase; collects one request (pure)
     wakeEngine.js        loads the wake-word detector and plays the chime
     audio.js             streaming resampler, WAV/PCM encoding (pure)
-  wakeword/            on-device "Hey Jarvis" detector (openWakeWord models, ONNX Runtime Web)
+  wakeword/            on-device "Hey Ollie" detector (openWakeWord models, ONNX Runtime Web)
     detector.js          runs the three models on 16 kHz audio
     features.js          audio -> features for the detector (pure)
   content/             top frame of http(s) pages
@@ -364,7 +364,7 @@ Modules marked *pure* have no Chrome or DOM dependencies and are unit tested in 
 | Setting | Default | Notes |
 |---|---|---|
 | Gemini API key | – | Required for voice only. See [Where is the API key stored?](#where-is-the-api-key-stored) |
-| Listening mode | Always listen | *Trigger word*: nothing is sent until someone on the call says "Hey Jarvis"; then only that request is sent. *Always listen*: every sentence is sent. Takes effect the next time listening starts |
+| Listening mode | Always listen | *Trigger word*: nothing is sent until someone on the call says "Hey Ollie"; then only that request is sent. *Always listen*: every sentence is sent. Takes effect the next time listening starts |
 | Model | `gemini-flash-lite-latest` | Blank uses the default. If the chosen model is overloaded (5xx), silent for 8 s, or not found, `BUSY_FALLBACK_MODELS` are tried. If the model is not found, a Flash model from the account's model list is saved here. Run `node scripts/gemini-check.mjs` to measure models with your key |
 
 **Tuning constants** in [src/shared/constants.js](src/shared/constants.js):
@@ -379,7 +379,7 @@ Modules marked *pure* have no Chrome or DOM dependencies and are unit tested in 
 | `MAX_CLIP_AGE_MS` | 15000 | Older clips are dropped as stale |
 | `DEDUPE_WINDOW_MS` | 10000 | The same command within this window is ignored (always-listen clips only) |
 | `GEMINI_ATTEMPT_TIMEOUT_MS` / `GEMINI_TIMEOUT_MS` | 8000 / 20000 | Wait per model before trying the next / wait in total |
-| `WAKE_PHRASE` / `WAKE_MODEL_FILE` | "Hey Jarvis" / `hey_jarvis_v0.1.onnx` | Change both together (see [models/wakeword/README.md](models/wakeword/README.md)) |
+| `WAKE_PHRASE` / `WAKE_MODEL_FILE` | "Hey Ollie" / `hey_ollie_v0.1.onnx` | Change both together (see [models/wakeword/README.md](models/wakeword/README.md)) |
 | `WAKE_THRESHOLD` | 0.5 | Higher means fewer false alarms but more missed wake phrases |
 | `WAKE_PREROLL_MS` / `WAKE_END_OF_COMMAND_MS` | 2000 / 900 | Audio kept before the wake phrase / pause that ends a request |
 | `WAKE_WAIT_FOR_COMMAND_MS` / `WAKE_MAX_COMMAND_MS` | 5000 / 8000 | Give up with no request / hard limit on audio sent per wake phrase |
@@ -390,7 +390,7 @@ Modules marked *pure* have no Chrome or DOM dependencies and are unit tested in 
 ## Privacy and security
 
 - Capture starts only when you turn on the listening switch. A badge and an on-page pill show it is active, and Stop is one click away.
-- **Trigger word mode:** the Meet audio is checked on the computer by an on-device model ([openWakeWord](https://github.com/dscripka/openWakeWord) on ONNX Runtime Web). Only the last 2 s are held in memory, and nothing is sent until "Hey Jarvis" is heard. Then **one clip** (the phrase plus the request, at most about 10 s) is sent. A chime and an on-page message show when this happens.
+- **Trigger word mode:** the Meet audio is checked on the computer by an on-device model ([openWakeWord](https://github.com/dscripka/openWakeWord) on ONNX Runtime Web). Only the last 2 s are held in memory, and nothing is sent until "Hey Ollie" is heard. Then **one clip** (the phrase plus the request, at most about 10 s) is sent. A chime and an on-page message show when this happens.
 - **Always listen mode (default):** **short clips of all speech** in the Meet tab's audio are sent.
 - In both modes, the clip and the **names/roles of visible buttons and links** on your current page are sent to Google's Gemini API. They are subject to your API tier's data-use terms (free-tier data may be used by Google to improve products).
 - Never sent: page HTML, field values, passwords, typed text, message bodies, cookies. Labels are truncated to 60 characters. Note that link text (for example an email subject shown as a link) can appear among the labels.
@@ -407,7 +407,7 @@ Modules marked *pure* have no Chrome or DOM dependencies and are unit tested in 
 | **Meet audio not captured** | Turn on the listening switch in the popup *while the Meet tab is active* (Chrome requires the extension to be invoked on that tab). Look at the popup state line. Check the service worker console. A tab already captured by another extension cannot be captured twice. |
 | **Meet audio becomes silent** | The offscreen document plays the audio back. Check *Inspect views: offscreen.html* → Console. Turn the switch off and on again. If the Meet tab was reloaded, capture ends (state: *interrupted*). |
 | **Gemini errors** | The popup shows the message. `API key rejected` means re-paste the key. `Rate limit` means the helper pauses automatically. `Model not found` means it switches to an available Flash model (saved in Settings), or you can enter a model manually. |
-| **Trigger word does not respond** | Check that the popup says *Say "Hey Jarvis"*. Speak the phrase clearly on the Meet call, and wait for the chime. The wake-word model is a bundled file: if the service worker or offscreen console shows a load error, reload the extension. |
+| **Trigger word does not respond** | Check that the popup says *Say "Hey Ollie"*. Speak the phrase clearly on the Meet call, and wait for the chime. The wake-word model is a bundled file: if the service worker or offscreen console shows a load error, reload the extension. |
 | **No matching element** | Use the popup's Text page to check the page has a control with that label. Icon-only buttons need an `aria-label`/`title`. Cross-origin iframes and canvas-drawn controls are not supported. |
 | **Not running on a page** | Content scripts don't run on `chrome://`, the Chrome Web Store, the PDF viewer or `file://` pages. Tabs opened before installing are injected automatically on first use. |
 | **Errors in `chrome://extensions` after reloading** | Reload the web pages you are testing on. A page that was open before the reload still runs the old content script. |
@@ -426,7 +426,7 @@ Modules marked *pure* have no Chrome or DOM dependencies and are unit tested in 
 - Inferred names (from icons, links, nearby text, or pictures) are guesses. The helper prefers real labels, and when a guess is not clearly the right one it shows a few candidates instead of pointing at one.
 - Elements in the browser's top layer (`<dialog>.showModal()`, fullscreen) can cover the overlay.
 - The trigger word only hears the **Meet tab** (the other person's voice), not this computer's microphone.
-- "Hey Jarvis" is openWakeWord's pre-trained model, licensed **CC BY-NC-SA 4.0 (non-commercial)**. A custom phrase needs a model trained with openWakeWord's notebook ([models/wakeword/README.md](models/wakeword/README.md)).
+- The "Hey Ollie" model was trained with openWakeWord's pipeline in [notebooks/hey_ollie_training.ipynb](notebooks/hey_ollie_training.ipynb). It is **not yet verified** on real recordings in this repo: see the wake-word notes in [models/wakeword/README.md](models/wakeword/README.md).
 
 ## Roadmap
 

@@ -242,7 +242,7 @@ test('re-injection does not duplicate listeners or overlays', async () => {
   assert.equal(await page.evaluate(() => document.querySelectorAll('#senior-helper-root').length), 1);
 });
 
-test('wake word: the on-device detector loads under the extension CSP and hears "Hey Jarvis"', async () => {
+test('wake word: the on-device detector loads under the extension CSP and hears "Hey Ollie"', async () => {
   const id = new URL(worker.url()).host;
   const page = await browser.newPage();
   const errors = [];
@@ -274,7 +274,7 @@ test('wake word: the on-device detector loads under the extension CSP and hears 
   await page.close();
   console.log(`#   wake word in Chrome: pos max ${result.pos.max.toFixed(3)} (${result.pos.ms} ms for ${result.pos.seconds.toFixed(1)} s audio), neg max ${result.neg.max.toFixed(3)}`);
   assert.deepEqual(errors, []);
-  assert.equal(result.pos.hits, 1, 'fires once on "Hey Jarvis, click the compose button."');
+  assert.equal(result.pos.hits, 1, 'fires once on "Hey Ollie, click the compose button."');
   assert.equal(result.neg.hits, 0, 'stays quiet on ordinary conversation');
   assert.ok(result.pos.ms < result.pos.seconds * 1000, 'runs faster than real time');
 });
@@ -323,8 +323,8 @@ async function runOffscreen(mode, clipNames) {
   return sent;
 }
 
-test('wake word end to end: offscreen capture sends nothing for chat, one clip after "Hey Jarvis"', async () => {
-  const sent = await runOffscreen('wake', ['neg_1.wav', 'neg_3.wav', 'pos_2.wav']);
+test('wake word end to end: offscreen capture sends nothing for chat, one clip after "Hey Ollie"', async () => {
+  const sent = await runOffscreen('wake', ['neg_1.wav', 'neg_3.wav', 'pos_6.wav']);
   console.log(`#   offscreen messages (wake): ${JSON.stringify(sent)}`);
   const clips = sent.filter((m) => m.action === 'AUDIO_CLIP');
   assert.equal(clips.length, 1, 'exactly one clip: the request after the wake phrase');
@@ -372,7 +372,7 @@ test('popup: main view shows only the listening switch; the mode lives in Settin
   });
   await new Promise((r) => setTimeout(r, 300));
   assert.equal(await sw(async () => (await chrome.storage.local.get('voiceMode')).voiceMode), 'wake');
-  assert.match(await popup.evaluate(() => document.getElementById('privacy-note').textContent), /Nothing is shared until someone says "Hey Jarvis"/);
+  assert.match(await popup.evaluate(() => document.getElementById('privacy-note').textContent), /Nothing is shared until someone says "Hey Ollie"/);
   await sw(() => chrome.storage.local.remove('voiceMode'));
   assert.deepEqual(errors, []);
   await popup.close();
@@ -503,7 +503,7 @@ test('voice pipeline: command clip -> pointer; overlapping repeat is deduplicate
 });
 
 test('voice pipeline: a repeated wake-word request is pointed at again (not deduplicated)', async () => {
-  await installFakeGemini({ transcript: 'Hey Jarvis, click the Compose button', isCommand: true, target: 'Compose' });
+  await installFakeGemini({ transcript: 'Hey Ollie, click the Compose button', isCommand: true, target: 'Compose' });
   const g = await fakeListening(tabId);
   const wakeClip = (seq) => sw((gen, sq) => globalThis.__seniorHelperTest.processAudioClip({
     generation: gen, seq: sq, audioBase64: 'UklGRg==', mimeType: 'audio/wav', capturedAt: Date.now(), durationMs: 3000, wake: true
@@ -513,7 +513,7 @@ test('voice pipeline: a repeated wake-word request is pointed at again (not dedu
 });
 
 test('voice pipeline: an overloaded model (503) falls back to another model and still points', async () => {
-  await installFakeGemini({ transcript: 'Hey Jarvis, click the Compose button', isCommand: true, target: 'Compose', busyModels: ['gemini-2.5-flash'] });
+  await installFakeGemini({ transcript: 'Hey Ollie, click the Compose button', isCommand: true, target: 'Compose', busyModels: ['gemini-2.5-flash'] });
   const g = await fakeListening(tabId);
   const res = await sw((gen) => globalThis.__seniorHelperTest.processAudioClip({
     generation: gen, seq: 0, audioBase64: 'UklGRg==', mimeType: 'audio/wav', capturedAt: Date.now(), durationMs: 3000, wake: true
