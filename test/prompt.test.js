@@ -90,7 +90,7 @@ test('ordinary conversation is not a command even if an id is returned', () => {
 
 test('wake-word clips tell Gemini the request follows the wake phrase', () => {
   const p = buildUserPrompt({ audioBase64: 'AAAA', wake: true }, [], '');
-  assert.match(p, /starts with the wake phrase "Hey Jarvis"/);
+  assert.match(p, /starts with the wake phrase "Hey Ollie"/);
   assert.match(p, /Do not include the wake phrase in target or label/);
   const plain = buildUserPrompt({ audioBase64: 'AAAA' }, [], '');
   assert.doesNotMatch(plain, /wake phrase/);

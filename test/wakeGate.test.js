@@ -52,7 +52,7 @@ test('closed gate keeps only the pre-roll in memory', () => {
 test('wake phrase, pause, command, pause -> one clip with pre-roll + command', () => {
   const { gate, clips, closes, feed } = makeGate();
   feed('silence', 1000);
-  feed('speech', 800); // "Hey Jarvis"
+  feed('speech', 800); // "Hey Ollie"
   gate.open(); // detector fires at the end of the phrase
   feed('silence', 700); // short pause (waits for the command)
   feed('speech', 1500); // "click the compose button"
@@ -68,7 +68,7 @@ test('wake phrase, pause, command, pause -> one clip with pre-roll + command', (
 test('wake phrase and command in one breath are captured whole', () => {
   const { gate, clips, feed } = makeGate();
   feed('silence', 1000);
-  feed('speech', 700); // "Hey Jarvis"
+  feed('speech', 700); // "Hey Ollie"
   gate.open();
   feed('speech', 1200); // "click compose" without a pause
   feed('silence', 1200);

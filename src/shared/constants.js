@@ -30,9 +30,9 @@ export const DEFAULT_VOICE_MODE = VOICE_MODES.ALWAYS;
 
 // ---- Wake word (on-device, openWakeWord models in models/wakeword/) ----
 /** What people should say. Must match WAKE_MODEL_FILE. */
-export const WAKE_PHRASE = 'Hey Jarvis';
+export const WAKE_PHRASE = 'Hey Ollie';
 export const WAKE_MODEL_DIR = 'models/wakeword/';
-export const WAKE_MODEL_FILE = 'hey_jarvis_v0.1.onnx';
+export const WAKE_MODEL_FILE = 'hey_ollie_v0.1.onnx';
 export const WAKE_MEL_FILE = 'melspectrogram.onnx';
 export const WAKE_EMBEDDING_FILE = 'embedding_model.onnx';
 /** Score (0..1) at which the wake phrase counts as heard. Higher = fewer false alarms, more misses. */
